@@ -1366,6 +1366,9 @@ body {
   };
 
   // ── Auth state observer ──
+  // Session guard — only allow cloud writes/loads after explicit login in this session
+  let _swExplicitLoginDone = false;
+
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       try {
@@ -1373,16 +1376,16 @@ body {
         const data = snap.exists() ? snap.data() : {};
         const isPremium = data.isPremium === true;
         const username = data.username || '';
-        // Store cloud lastLogin timestamp (ms) for comparison
         const cloudLastLogin = data.lastLogin ? data.lastLogin.toMillis() : 0;
         window._swCurrentUser = { uid: user.uid, username, isPremium, cloudLastLogin };
-        // Update lastLogin on server
-        await setDoc(doc(db, 'hosts', user.uid), { lastLogin: serverTimestamp() }, { merge: true });
-        if (isPremium) {
-          await window._swLoadLeaderboardFromCloud(cloudLastLogin);
+        // Only write lastLogin and load LB after an explicit login this session
+        if (_swExplicitLoginDone) {
+          await setDoc(doc(db, 'hosts', user.uid), { lastLogin: serverTimestamp() }, { merge: true });
+          if (isPremium) {
+            await window._swLoadLeaderboardFromCloud(cloudLastLogin);
+          }
         }
       } catch (e) {
-        // Firebase unreachable — use localStorage fallback
         window._swCurrentUser = { uid: user.uid, username: localStorage.getItem('sw_username') || '', isPremium: false, cloudLastLogin: 0 };
         window._swShowOfflineBanner();
       }
@@ -1479,48 +1482,6 @@ body {
       <div class="login-footer-text" style="margin-top:14px">
         Forgot your password?
         <a href="https://discord.gg/DhDzyC94mV" target="_blank" rel="noopener noreferrer" id="swForgotDiscordLink">Open a support ticket on Discord →</a>
-        &nbsp;·&nbsp;
-        <a href="#" onclick="swlSwitchAuthTab('recovery');return false;">Have a recovery code?</a>
-      </div>
-    </div>
-
-    <!-- ── RECOVERY CODE PANEL ── -->
-    <div id="swPanelRecovery" style="display:none">
-      <div class="login-title" style="font-size:1.5rem;margin-bottom:4px">🔑 Recovery Code</div>
-      <div class="login-sub">Enter the code your admin sent you to set a new password</div>
-
-      <div class="form-field">
-        <label>👤 Username</label>
-        <input type="text" id="recoveryUsername" placeholder="your_username" autocomplete="username" />
-      </div>
-      <div class="form-field">
-        <label>🔑 Recovery Code</label>
-        <input type="text" id="recoveryCodeInput" placeholder="e.g. AB3X7YZ2" autocomplete="off"
-          style="letter-spacing:3px;font-weight:800;text-transform:uppercase"
-          oninput="this.value=this.value.toUpperCase()" />
-      </div>
-
-      <!-- New password — shown after code verified -->
-      <div id="recoveryNewPwField" style="display:none">
-        <div class="form-field">
-          <label>🔒 New Password <span style="font-weight:500;font-size:0.75rem;color:var(--text3)">(min 8 chars)</span></label>
-          <div style="position:relative">
-            <input type="password" id="recoveryNewPw" placeholder="••••••••" style="padding-right:42px"
-              oninput="swlCheckPwStrength(this.value,'recoveryPwBar','recoveryPwLabel')" />
-            <button type="button" onclick="swlTogglePw('recoveryNewPw',this)"
-              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text2)">👁</button>
-          </div>
-          <div style="height:4px;border-radius:4px;margin-top:5px;background:var(--border);overflow:hidden">
-            <div id="recoveryPwBar" style="height:100%;width:0;transition:width 0.3s,background 0.3s;border-radius:4px"></div>
-          </div>
-          <div id="recoveryPwLabel" style="font-size:0.7rem;font-weight:800;margin-top:3px;color:var(--text3)"></div>
-        </div>
-      </div>
-
-      <button type="button" class="btn-login" id="recoveryActionBtn" onclick="swlVerifyRecoveryCode()">Verify Code →</button>
-
-      <div class="login-footer-text" style="margin-top:12px">
-        <a href="#" onclick="swlSwitchAuthTab('signin');return false;">← Back to Sign In</a>
       </div>
     </div>
 
@@ -1602,11 +1563,8 @@ body {
   </div>
 </div>
 
-<!-- ===== END SW-LANDING-ROOT ===== -->
-</div>
-
-<!-- ===== DELETE ACCOUNT MODAL (body-level — works both on landing and in-app) ===== -->
-<div class="swl-modal-backdrop" id="deleteAccountModal" style="z-index:9999">
+<!-- ===== DELETE ACCOUNT MODAL ===== -->
+<div class="swl-modal-backdrop" id="deleteAccountModal">
   <div class="swl-modal-box" style="max-width:440px">
     <div class="swl-modal-header">
       <div class="swl-modal-title" style="color:#ff4444">⚠️ Delete Account</div>
@@ -1630,7 +1588,7 @@ body {
   </div>
 </div>
 
-<!-- ===== OFFLINE / FALLBACK BANNER (body-level) ===== -->
+<!-- ===== OFFLINE / FALLBACK BANNER ===== -->
 <div class="sw-offline-banner" id="swOfflineBanner">
   <span class="sw-offline-banner-icon">🔒</span>
   <div class="sw-offline-banner-body">
@@ -1638,6 +1596,7 @@ body {
     <span id="swOfflineBannerMsg">StreamWheel couldn't reach the cloud database. Your local data is still intact and will sync automatically when the connection is restored.</span>
   </div>
   <button type="button" class="sw-offline-banner-close" onclick="document.getElementById('swOfflineBanner').classList.remove('show')" title="Dismiss">✕</button>
+</div>
 </div>
 
 <!-- HEADER -->
@@ -4512,17 +4471,8 @@ function escHtml(s) {
   window.swlSwitchAuthTab = function(tab) {
     document.getElementById('swPanelSignin').style.display = tab === 'signin' ? '' : 'none';
     document.getElementById('swPanelRegister').style.display = tab === 'register' ? '' : 'none';
-    var recPanel = document.getElementById('swPanelRecovery');
-    if (recPanel) recPanel.style.display = tab === 'recovery' ? '' : 'none';
     document.getElementById('swTabSignin').classList.toggle('active', tab === 'signin');
     document.getElementById('swTabRegister').classList.toggle('active', tab === 'register');
-    // Reset recovery state when switching away
-    if (tab !== 'recovery') {
-      var rpf = document.getElementById('recoveryNewPwField');
-      var rab = document.getElementById('recoveryActionBtn');
-      if (rpf) rpf.style.display = 'none';
-      if (rab) { rab.textContent = 'Verify Code \u2192'; rab.onclick = swlVerifyRecoveryCode; }
-    }
     // Apply discord link from config
     var discordLink = document.getElementById('swForgotDiscordLink');
     if (discordLink && SWL_CONFIG.discordUrl) discordLink.href = SWL_CONFIG.discordUrl;
@@ -4596,8 +4546,9 @@ function escHtml(s) {
       var username = swUser.username || localStorage.getItem('sw_username') || '';
       var credential = fb.EmailAuthProvider.credential(_usernameToEmail(username), currentPw);
       await fb.reauthenticateWithCredential(user, credential);
-      // Now update the password using the already-imported updatePassword
-      await fb.updatePassword(user, newPw);
+      // Now update the password
+      var { updatePassword } = fb;
+      await updatePassword(user, newPw);
       // Clear the fields
       ['cpCurrentPw','cpNewPw','cpConfirmPw'].forEach(function(id) {
         var el = document.getElementById(id); if (el) el.value = '';
@@ -4647,6 +4598,7 @@ function escHtml(s) {
     if (!fb) { showToast('\u26A0\uFE0F Still loading — please wait a moment'); return; }
     try {
       showToast('\uD83D\uDD04 Signing in\u2026');
+      _swExplicitLoginDone = true;
       await fb.signInWithEmailAndPassword(fb.auth, _usernameToEmail(username), pass);
       localStorage.setItem('sw_username', username);
       showToast('\u2705 Welcome back, ' + username + '!');
@@ -4678,6 +4630,7 @@ function escHtml(s) {
     if (!fb) { showToast('\u26A0\uFE0F Still loading — please wait a moment'); return; }
     try {
       showToast('\uD83D\uDD04 Creating account\u2026');
+      _swExplicitLoginDone = true;
       var cred = await fb.createUserWithEmailAndPassword(fb.auth, _usernameToEmail(username), pass);
       await fb.setDoc(fb.doc(fb.db, 'hosts', cred.user.uid), {
         username: username,
@@ -4708,10 +4661,6 @@ function escHtml(s) {
   };
 
   // ── Recovery code verification ──
-  // The admin generates a code in admin.html and stores it as recoveryCode + recoveryExpiry
-  // in the user's hosts/{uid} Firestore doc. The code IS also set as the Firebase Auth
-  // password so the user can sign in with it. After verification the new password is set
-  // and the code is wiped so it cannot be reused.
   window.swlVerifyRecoveryCode = async function() {
     var username = ((document.getElementById('recoveryUsername') || {}).value || '').trim().toLowerCase();
     var code = ((document.getElementById('recoveryCodeInput') || {}).value || '').trim().toUpperCase();
@@ -4722,9 +4671,9 @@ function escHtml(s) {
     var btn = document.getElementById('recoveryActionBtn');
     if (btn) { btn.disabled = true; btn.textContent = '\uD83D\uDD04 Checking\u2026'; }
     try {
-      // Sign in using the code as the Firebase Auth password
+      _swExplicitLoginDone = true;
       var tempCred = await fb.signInWithEmailAndPassword(fb.auth, _usernameToEmail(username), code);
-      // Now read Firestore to verify it's a valid, unexpired recovery code
+      // Read Firestore to check if this is a valid unexpired recovery code
       var hostSnap = await fb.getDoc(fb.doc(fb.db, 'hosts', tempCred.user.uid));
       var hostData = hostSnap.exists() ? hostSnap.data() : {};
       var storedCode = (hostData.recoveryCode || '').toString().toUpperCase();
@@ -4732,8 +4681,7 @@ function escHtml(s) {
       var isValidRecovery = storedCode.length > 0 && code === storedCode && expiry && expiry > new Date();
 
       if (!isValidRecovery) {
-        // Signed in but not via a recovery code — just a normal login with a changed password
-        // Treat as regular login and prompt to update password in settings
+        // Not a recovery code — treat as normal login
         localStorage.setItem('sw_username', hostData.username || username);
         window._swCurrentUser = {
           uid: tempCred.user.uid,
@@ -4748,10 +4696,9 @@ function escHtml(s) {
         return;
       }
 
-      // Valid recovery code — reveal new password form
+      // Valid recovery code — show new password form
       var rpf = document.getElementById('recoveryNewPwField');
       if (rpf) rpf.style.display = '';
-      // Store for use in set-password step
       window._swRecoveryUser = tempCred.user;
       window._swRecoveryHostData = hostData;
       if (btn) {
@@ -4761,11 +4708,12 @@ function escHtml(s) {
       }
       showToast('\u2705 Code verified! Set your new password below.');
     } catch(e) {
+      _swExplicitLoginDone = false; // reset on failure
       var errCode = (e.code || '');
       var msg = (errCode === 'auth/invalid-credential' || errCode === 'auth/wrong-password' || errCode === 'auth/user-not-found')
         ? '\u274C Code is incorrect or has expired \u2014 contact your admin'
         : errCode === 'auth/too-many-requests'
-        ? '\u274C Too many attempts \u2014 please wait a moment'
+        ? '\u274C Too many attempts \u2014 please wait'
         : '\u274C Verification failed (' + errCode + ')';
       showToast(msg);
       if (btn) { btn.disabled = false; btn.textContent = 'Verify Code \u2192'; }
@@ -4784,7 +4732,7 @@ function escHtml(s) {
     if (btn) { btn.disabled = true; btn.textContent = '\uD83D\uDD04 Saving\u2026'; }
     try {
       await fb.updatePassword(firebaseUser, newPw);
-      // Wipe the recovery code so it cannot be reused
+      // Wipe the recovery code — cannot be reused
       await fb.setDoc(fb.doc(fb.db, 'hosts', firebaseUser.uid), {
         recoveryCode: '',
         recoveryExpiry: '',
@@ -4808,10 +4756,6 @@ function escHtml(s) {
       if (btn) { btn.disabled = false; btn.textContent = 'Set New Password \u2192'; }
     }
   };
-
-  // ── Sync cooldown state ──
-  var _swLastSyncTime = 0;
-  var _swSyncCooldownMs = 10 * 60 * 1000; // 10 minutes
 
   // ── Offline / fallback banner ──
   window._swShowOfflineBanner = function(msg) {
@@ -4943,7 +4887,7 @@ function escHtml(s) {
       });
       lb.sort(function(a,b) { return b.points - a.points; });
       localStorage.setItem('sw_lb', JSON.stringify(lb));
-      localStorage.setItem('sw_lb_last_sync', new Date(cloudSyncMs).toISOString());
+      localStorage.setItem('sw_lb_last_sync', new Date(cloudSyncMs).toLocaleString());
 
       if (typeof leaderboard !== 'undefined') {
         leaderboard.length = 0;
@@ -4971,7 +4915,7 @@ function escHtml(s) {
     }
   };
 
-  // -- Push leaderboard to Firestore (premium only, 10-min cooldown) --
+  // ── Push leaderboard to Firestore (premium only) ──
   window.swSyncLeaderboardToCloud = async function(silent) {
     var user = window._swCurrentUser;
     if (!user || !user.isPremium) {
@@ -4980,71 +4924,32 @@ function escHtml(s) {
     }
     var fb = _fb();
     if (!fb) { if (!silent) showToast('\u26A0\uFE0F Firebase not ready'); return; }
-
-    // 10-minute cooldown -- skipped for auto-sync on page close
-    if (!silent) {
-      var elapsed = Date.now() - (_swLastSyncTime || 0);
-      if (elapsed < _swSyncCooldownMs) {
-        var remainMins = Math.ceil((_swSyncCooldownMs - elapsed) / 60000);
-        showToast('\u23F3 Please wait ' + remainMins + ' more minute' + (remainMins !== 1 ? 's' : '') + ' before syncing again');
-        return;
-      }
-    }
-
     var btn = document.getElementById('lbSyncBtn');
     try {
       if (!silent && btn) { btn.disabled = true; btn.textContent = '\u23F3 Syncing\u2026'; }
       var raw = JSON.parse(localStorage.getItem('sw_lb') || '[]');
       var players = raw.map(function(e) {
-        return { username: e.name, points: e.points || 0, wins: e.wins || 0, lastUpdated: new Date().toISOString() };
+        return { username: e.name, points: e.points || 0, wins: e.wins || 0, lastUpdated: fb.serverTimestamp() };
       });
       await fb.setDoc(fb.doc(fb.db, 'leaderboards', user.uid), {
         players: players,
         lastSynced: fb.serverTimestamp()
       });
-      var nowIso = new Date().toISOString();
-      localStorage.setItem('sw_lb_last_sync', nowIso);
-      if (!silent) {
-        _swLastSyncTime = Date.now();
-        var lastSyncEl = document.getElementById('lbLastSyncedText');
-        if (lastSyncEl) lastSyncEl.textContent = 'Last synced: ' + new Date(nowIso).toLocaleString();
-        swStartSyncCooldownUI(btn);
-        showToast('\u2705 Leaderboard synced to cloud!');
-      }
+      var now = new Date().toLocaleString();
+      localStorage.setItem('sw_lb_last_sync', now);
+      var lastSyncEl = document.getElementById('lbLastSyncedText');
+      if (lastSyncEl) lastSyncEl.textContent = 'Last synced: ' + now;
+      if (!silent) showToast('\u2705 Leaderboard synced to cloud!');
     } catch (e) {
       if (!silent) {
-        showToast('\u274C Sync failed \u2014 your data is safe locally. (' + (e.code || e.message) + ')');
+        showToast('\u274C Sync failed — your data is safe locally. (' + (e.code || e.message) + ')');
         window._swShowOfflineBanner('Sync failed. Your leaderboard is saved locally and will sync next time the cloud is reachable.');
       }
       console.error('[StreamWheel] LB sync error:', e);
     } finally {
-      if (!silent && !_swSyncCooldownInterval) {
-        if (btn) { btn.disabled = false; btn.textContent = '\u2601\uFE0F Sync to Cloud'; }
-      }
+      if (!silent && btn) { btn.disabled = false; btn.textContent = '\u2601\uFE0F Sync to Cloud'; }
     }
   };
-
-  var _swSyncCooldownInterval = null;
-  window.swStartSyncCooldownUI = function(btn) {
-    if (!btn) return;
-    if (_swSyncCooldownInterval) clearInterval(_swSyncCooldownInterval);
-    btn.disabled = true;
-    _swSyncCooldownInterval = setInterval(function() {
-      var elapsed = Date.now() - (_swLastSyncTime || 0);
-      var remaining = _swSyncCooldownMs - elapsed;
-      if (remaining <= 0) {
-        clearInterval(_swSyncCooldownInterval);
-        _swSyncCooldownInterval = null;
-        btn.disabled = false;
-        btn.textContent = '\u2601\uFE0F Sync to Cloud';
-        return;
-      }
-      var mins = Math.floor(remaining / 60000);
-      var secs = Math.floor((remaining % 60000) / 1000);
-      btn.textContent = '\u23F3 ' + mins + ':' + (secs < 10 ? '0' : '') + secs;
-    }, 1000);
-  };
-
 
   // ── Legacy alias (swlShowRegister was called by old "Create one free" link) ──
   window.swlShowRegister = function() { window.swlSwitchAuthTab('register'); window.swlScrollToLogin(); };
