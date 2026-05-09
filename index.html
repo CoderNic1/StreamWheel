@@ -1482,6 +1482,43 @@ body {
       <div class="login-footer-text" style="margin-top:14px">
         Forgot your password?
         <a href="https://discord.gg/DhDzyC94mV" target="_blank" rel="noopener noreferrer" id="swForgotDiscordLink">Open a support ticket on Discord →</a>
+        &nbsp;·&nbsp;
+        <a href="#" onclick="swlSwitchAuthTab('recovery');return false;">Have a recovery code?</a>
+      </div>
+    </div>
+
+    <!-- ── RECOVERY CODE PANEL ── -->
+    <div id="swPanelRecovery" style="display:none">
+      <div class="login-title" style="font-size:1.5rem;margin-bottom:4px">🔑 Recovery Code</div>
+      <div class="login-sub">Enter the code your admin sent you to set a new password</div>
+      <div class="form-field">
+        <label>👤 Username</label>
+        <input type="text" id="recoveryUsername" placeholder="your_username" autocomplete="username" />
+      </div>
+      <div class="form-field">
+        <label>🔑 Recovery Code</label>
+        <input type="text" id="recoveryCodeInput" placeholder="e.g. AB3X7YZ2" autocomplete="off"
+          style="letter-spacing:3px;font-weight:800;text-transform:uppercase"
+          oninput="this.value=this.value.toUpperCase()" />
+      </div>
+      <div id="recoveryNewPwField" style="display:none">
+        <div class="form-field">
+          <label>🔒 New Password <span style="font-weight:500;font-size:0.75rem;color:var(--text3)">(min 8 chars)</span></label>
+          <div style="position:relative">
+            <input type="password" id="recoveryNewPw" placeholder="••••••••" style="padding-right:42px"
+              oninput="swlCheckPwStrength(this.value,'recoveryPwBar','recoveryPwLabel')" />
+            <button type="button" onclick="swlTogglePw('recoveryNewPw',this)"
+              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;color:var(--text2)">👁</button>
+          </div>
+          <div style="height:4px;border-radius:4px;margin-top:5px;background:var(--border);overflow:hidden">
+            <div id="recoveryPwBar" style="height:100%;width:0;transition:width 0.3s,background 0.3s;border-radius:4px"></div>
+          </div>
+          <div id="recoveryPwLabel" style="font-size:0.7rem;font-weight:800;margin-top:3px;color:var(--text3)"></div>
+        </div>
+      </div>
+      <button type="button" class="btn-login" id="recoveryActionBtn" onclick="swlVerifyRecoveryCode()">Verify Code →</button>
+      <div class="login-footer-text" style="margin-top:12px">
+        <a href="#" onclick="swlSwitchAuthTab('signin');return false;">← Back to Sign In</a>
       </div>
     </div>
 
@@ -4471,9 +4508,17 @@ function escHtml(s) {
   window.swlSwitchAuthTab = function(tab) {
     document.getElementById('swPanelSignin').style.display = tab === 'signin' ? '' : 'none';
     document.getElementById('swPanelRegister').style.display = tab === 'register' ? '' : 'none';
+    var rec = document.getElementById('swPanelRecovery');
+    if (rec) rec.style.display = tab === 'recovery' ? '' : 'none';
     document.getElementById('swTabSignin').classList.toggle('active', tab === 'signin');
     document.getElementById('swTabRegister').classList.toggle('active', tab === 'register');
-    // Apply discord link from config
+    // Reset recovery state when switching away
+    if (tab !== 'recovery') {
+      var rpf = document.getElementById('recoveryNewPwField');
+      var rab = document.getElementById('recoveryActionBtn');
+      if (rpf) rpf.style.display = 'none';
+      if (rab) { rab.textContent = 'Verify Code \u2192'; rab.onclick = swlVerifyRecoveryCode; }
+    }
     var discordLink = document.getElementById('swForgotDiscordLink');
     if (discordLink && SWL_CONFIG.discordUrl) discordLink.href = SWL_CONFIG.discordUrl;
   };
