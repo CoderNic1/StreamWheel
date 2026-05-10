@@ -1331,14 +1331,19 @@ body {
   line-height: 1.6;
   margin-bottom: 16px;
 }
+/* ===== PREMIUM GATE ===== */
+.sw-premium-gate { position:relative; pointer-events:none; opacity:0.42; user-select:none; }
+.sw-premium-gate * { pointer-events:none !important; }
+.sw-premium-notice { display:flex; align-items:center; gap:8px; background:rgba(245,166,35,0.1); border:1.5px solid rgba(245,166,35,0.35); border-radius:var(--radius-sm); padding:8px 12px; font-size:0.78rem; font-weight:700; color:var(--gold,#f5a623); margin-bottom:10px; line-height:1.5; }
+.sw-premium-notice a { color:inherit; text-decoration:underline; }
+.sw-premium-notice-icon { width:18px; height:18px; border-radius:50%; background:rgba(245,166,35,0.25); display:inline-flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:900; flex-shrink:0; cursor:help; font-style:normal; }
 </style>
 
 <!-- Firebase SDK (modular v10) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-    signOut, onAuthStateChanged, deleteUser, reauthenticateWithCredential,
-    EmailAuthProvider, updatePassword }
+    signOut, onAuthStateChanged, deleteUser, reauthenticateWithCredential, EmailAuthProvider }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -1360,15 +1365,12 @@ body {
   window._swFirebase = {
     auth, db,
     signInWithEmailAndPassword, createUserWithEmailAndPassword,
-    signOut, onAuthStateChanged, deleteUser, updatePassword,
+    signOut, onAuthStateChanged, deleteUser,
     reauthenticateWithCredential, EmailAuthProvider,
     doc, getDoc, setDoc, deleteDoc, serverTimestamp
   };
 
   // ── Auth state observer ──
-  // Session guard — only allow cloud writes/loads after explicit login in this session
-  window.window._swExplicitLoginDone = false;
-
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       try {
@@ -1376,16 +1378,16 @@ body {
         const data = snap.exists() ? snap.data() : {};
         const isPremium = data.isPremium === true;
         const username = data.username || '';
+        // Store cloud lastLogin timestamp (ms) for comparison
         const cloudLastLogin = data.lastLogin ? data.lastLogin.toMillis() : 0;
         window._swCurrentUser = { uid: user.uid, username, isPremium, cloudLastLogin };
-        // Only write lastLogin and load LB after an explicit login this session
-        if (window._swExplicitLoginDone) {
-          await setDoc(doc(db, 'hosts', user.uid), { lastLogin: serverTimestamp() }, { merge: true });
-          if (isPremium) {
-            await window._swLoadLeaderboardFromCloud(cloudLastLogin);
-          }
+        // Update lastLogin on server
+        await setDoc(doc(db, 'hosts', user.uid), { lastLogin: serverTimestamp() }, { merge: true });
+        if (isPremium) {
+          await window._swLoadLeaderboardFromCloud(cloudLastLogin);
         }
       } catch (e) {
+        // Firebase unreachable — use localStorage fallback
         window._swCurrentUser = { uid: user.uid, username: localStorage.getItem('sw_username') || '', isPremium: false, cloudLastLogin: 0 };
         window._swShowOfflineBanner();
       }
@@ -1482,7 +1484,6 @@ body {
       <div class="login-footer-text" style="margin-top:14px">
         Forgot your password?
         <a href="https://discord.gg/DhDzyC94mV" target="_blank" rel="noopener noreferrer" id="swForgotDiscordLink">Open a support ticket on Discord →</a>
-        &nbsp;·&nbsp;
       </div>
     </div>
 
@@ -1518,20 +1519,8 @@ body {
 
       <button type="button" class="btn-login" onclick="swlRegisterUser()">Create Account →</button>
 
-      <!-- Xsee signup button -->
-      <button type="button" class="btn btn-secondary" onclick="swlOpenModal('xseeSignupModal')"
-        style="width:100%;margin-top:10px;justify-content:center;font-size:0.82rem;padding:10px">
-        📡 Don't have an Xsee account yet?
-      </button>
-
-      <!-- Password recovery warning -->
-      <div style="display:flex;align-items:flex-start;gap:8px;background:rgba(255,140,0,0.08);border:1.5px solid rgba(255,140,0,0.3);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:0.74rem;font-weight:700;color:var(--text2);line-height:1.55">
-        <span style="flex-shrink:0;font-size:1rem">⚠️</span>
-        <span>Recovering a lost password is currently not possible due to our current use of the privacy policy and the choice to not collect any direct personal information. If you lose access to your account, contact us on <a href="https://discord.gg/DhDzyC94mV" target="_blank" rel="noopener noreferrer" style="color:var(--accent6)">Discord</a> and we'll help you create a new one.</span>
-      </div>
-
-      <div class="login-footer-text" style="margin-top:10px;font-size:0.74rem">
-        By creating an account you agree that no sensitive personal data is stored — only your username and a password, we recommend to not use a commonly used password from other services.
+      <div class="login-footer-text" style="margin-top:12px;font-size:0.74rem">
+        By creating an account you agree that no sensitive personal data is stored — only your username and a securely hashed password.
       </div>
     </div>
 
@@ -1549,61 +1538,6 @@ body {
   </div>
   <div>© 2026 StreamWheel</div>
 </footer>
-
-<!-- ===== XSEE SIGNUP MODAL ===== -->
-<div class="swl-modal-backdrop" id="xseeSignupModal" style="z-index:9998">
-  <div class="swl-modal-box" style="max-width:480px">
-    <div class="swl-modal-header">
-      <div class="swl-modal-title">📡 Join Xsee</div>
-      <button type="button" class="swl-modal-close-btn" onclick="swlCloseModal('xseeSignupModal')">✕</button>
-    </div>
-    <div class="swl-modal-body">
-      <div style="font-size:0.82rem;font-weight:700;color:var(--text2);line-height:1.7;margin-bottom:18px">
-        Xsee is the streaming platform StreamWheel is built for. We are not responsible for any actions taken by Xsee, read there terms of use and privacy policy. By signing up with the link below you use our referral code and can enjoy extra benefits in our discord server. If you need to enter the code you can use <strong>CD292248</strong> to enter. Create your free account in a few steps:
-      </div>
-
-      <!-- Step by step -->
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent6);color:#fff;font-weight:900;font-size:0.82rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
-          <div>
-            <div style="font-weight:800;font-size:0.84rem;color:var(--text)">Go to Xsee.tv</div>
-            <div style="font-size:0.76rem;color:var(--text2);margin-top:2px">Click the sign up button in the top right corner</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent6);color:#fff;font-weight:900;font-size:0.82rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
-          <div>
-            <div style="font-weight:800;font-size:0.84rem;color:var(--text)">Choose your username</div>
-            <div style="font-size:0.76rem;color:var(--text2);margin-top:2px">Pick the same username you'll use for StreamWheel so your identity stays consistent and is easy to remember or when you need support.</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent6);color:#fff;font-weight:900;font-size:0.82rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
-          <div>
-            <div style="font-weight:800;font-size:0.84rem;color:var(--text)">Sign up with an email and password</div>
-            <div style="font-size:0.76rem;color:var(--text2);margin-top:2px">Xsee uses standard email registration — use a real email so you can recover your Xsee account if needed</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent6);color:#fff;font-weight:900;font-size:0.82rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">4</div>
-          <div>
-            <div style="font-weight:800;font-size:0.84rem;color:var(--text)">Come back and create your StreamWheel account</div>
-            <div style="font-size:0.76rem;color:var(--text2);margin-top:2px">Use the same username you picked on Xsee wich makes it easier to remember or when you need support.</div>
-          </div>
-        </div>
-      </div>
-
-      <a href="https://xsee.tv/?ref=CD292248" target="_blank" rel="noopener noreferrer"
-        style="display:flex;align-items:center;justify-content:center;gap:8px;background:var(--accent6);color:#fff;border-radius:var(--radius-sm);padding:12px 20px;font-family:var(--font-body);font-weight:800;font-size:0.9rem;text-decoration:none;transition:opacity 0.2s"
-        onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
-        📡 Sign up on Xsee.tv →
-      </a>
-      <div style="font-size:0.68rem;color:var(--text3);text-align:center;margin-top:8px;font-weight:600">
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ===== UPDATE LOG MODAL ===== -->
 <div class="swl-modal-backdrop" id="updateLogModal">
@@ -2054,24 +1988,32 @@ body {
         <div class="panel-title">🎡 Wheel Appearance</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
           <div>
-            <div style="font-size:0.78rem;font-weight:800;color:var(--text2);margin-bottom:6px">🖼️ Center Logo <span style="font-size:0.65rem;font-weight:600;opacity:0.8">(free premium)</span></div>
-            <label class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px">
-              📤 Upload
-              <input type="file" id="wheelLogoInput" accept="image/*" style="display:none" onchange="handleWheelLogoUpload(this)">
-            </label>
-            <div id="wheelLogoPreviewWrap" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
-              <img id="wheelLogoPreview" src="" alt="Logo" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--border)">
-              <button type="button" class="btn btn-danger btn-xs" onclick="removeWheelLogo()">✕</button>
+            <div style="font-size:0.78rem;font-weight:800;color:var(--text2);margin-bottom:6px">🖼️ Center Logo &amp; Size <span class="api-badge" style="margin-left:4px;font-size:0.6rem">⭐ Premium</span></div>
+            <!-- Premium notice -->
+            <div id="wheelLogoPremiumNotice" class="sw-premium-notice" style="display:none">
+              <i class="sw-premium-notice-icon" title="Premium feature">⭐</i>
+              <span>Subscribe to <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou on Xsee</a> to unlock.</span>
             </div>
-            <div style="margin-top:8px">
-              <div style="font-size:0.72rem;font-weight:800;color:var(--text2);margin-bottom:4px">⭕ Center Size</div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap">
-                <button type="button" class="btn btn-secondary btn-xs center-size-btn active" data-size="s" onclick="setWheelCenterSize('s')">S</button>
-                <button type="button" class="btn btn-secondary btn-xs center-size-btn" data-size="m" onclick="setWheelCenterSize('m')">M</button>
-                <button type="button" class="btn btn-secondary btn-xs center-size-btn" data-size="l" onclick="setWheelCenterSize('l')">L</button>
-                <button type="button" class="btn btn-secondary btn-xs center-size-btn" data-size="xl" onclick="setWheelCenterSize('xl')">XL</button>
+            <!-- Content -->
+            <div id="wheelLogoContent">
+              <label class="btn btn-secondary btn-sm" id="wheelLogoUploadBtn" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:6px">
+                📤 Upload
+                <input type="file" id="wheelLogoInput" accept="image/*" style="display:none" onchange="swPremiumAction('handleWheelLogoUpload', this)">
+              </label>
+              <div id="wheelLogoPreviewWrap" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
+                <img id="wheelLogoPreview" src="" alt="Logo" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--border)">
+                <button type="button" class="btn btn-danger btn-xs" onclick="removeWheelLogo()">✕</button>
               </div>
-              <div style="font-size:0.68rem;color:var(--text2);font-weight:600;margin-top:3px">Outer ring stays unchanged</div>
+              <div style="margin-top:8px">
+                <div style="font-size:0.72rem;font-weight:800;color:var(--text2);margin-bottom:4px">⭕ Center Size</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  <button type="button" class="btn btn-secondary btn-xs center-size-btn active" data-size="s" onclick="swPremiumAction('setWheelCenterSize','s')">S</button>
+                  <button type="button" class="btn btn-secondary btn-xs center-size-btn" data-size="m" onclick="swPremiumAction('setWheelCenterSize','m')">M</button>
+                  <button type="button" class="btn btn-secondary btn-xs center-size-btn" data-size="l" onclick="swPremiumAction('setWheelCenterSize','l')">L</button>
+                  <button type="button" class="btn btn-secondary btn-xs center-size-btn" data-size="xl" onclick="swPremiumAction('setWheelCenterSize','xl')">XL</button>
+                </div>
+                <div style="font-size:0.68rem;color:var(--text2);font-weight:600;margin-top:3px">Outer ring stays unchanged</div>
+              </div>
             </div>
           </div>
           <div>
@@ -2217,35 +2159,43 @@ body {
         </div>
       </div>
 
-      <!-- Auto-Loop Cycle (Premium — free now) -->
+      <!-- Auto-Loop Cycle — Premium Feature -->
       <div class="panel" style="margin-bottom:16px;border-color:var(--accent6)">
         <button class="section-toggle-btn" onclick="toggleSection('autoCycleSection', this)">
-          <span style="color:var(--accent6)">🔁 Auto-Loop Cycle <span class="api-badge" style="margin-left:6px">Free now · Premium later</span></span>
+          <span style="color:var(--accent6)">🔁 Auto-Loop Cycle <span class="api-badge" style="margin-left:6px">⭐ Premium</span></span>
           <span class="toggle-icon">▼</span>
         </button>
         <div class="collapsible-section closed" id="autoCycleSection" style="margin-top:12px">
-          <p style="font-size:0.8rem;color:var(--text2);font-weight:600;margin-bottom:10px">Set up a game, then loop it automatically. Wheel spins, picks a winner, restarts after a wait — perfect for long streams.</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            <div class="form-group" style="margin-bottom:0">
-              <label class="form-label">⏳ Wait between rounds (min)</label>
-              <input class="form-input" type="number" id="cycleWaitMins" min="0.5" step="0.5" value="5" placeholder="5">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label class="form-label">🔄 Loops <span style="font-weight:500">(0 = ∞)</span></label>
-              <input class="form-input" type="number" id="cycleLoopCount" min="0" value="0" placeholder="0 = unlimited">
-            </div>
+          <!-- Premium notice (shown when not premium) -->
+          <div id="autoCyclePremiumNotice" class="sw-premium-notice" style="display:none">
+            <i class="sw-premium-notice-icon" title="This feature requires a StreamWheel Premium subscription">⭐</i>
+            <span>Auto-Loop Cycle is a <strong>Premium</strong> feature. Subscribe to the <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou channel on Xsee</a> to unlock it.</span>
           </div>
-          <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.82rem;cursor:pointer;margin-bottom:10px">
-            <input type="checkbox" id="cycleAutoclearEntries" style="width:15px;height:15px;accent-color:var(--accent6)">
-            🧹 Auto-clear entries each round
-            <span style="font-size:0.68rem;font-weight:600;color:var(--text2)">(off = keep entries, great for recurring viewer pools)</span>
-          </label>
-          <div id="cycleStatusMsg" style="font-size:0.78rem;font-weight:700;color:var(--accent6);display:none;padding:6px 10px;background:rgba(199,125,255,0.1);border-radius:8px;border:1px solid var(--accent6);margin-bottom:8px"></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn btn-primary btn-sm" id="cycleStartBtn" onclick="startAutoCycle()">▶ Start Cycle</button>
-            <button type="button" class="btn btn-danger btn-sm" id="cycleStopBtn" onclick="stopAutoCycle()" style="display:none">⏹ Stop Cycle</button>
+          <!-- Content (dimmed when not premium) -->
+          <div id="autoCycleContent">
+            <p style="font-size:0.8rem;color:var(--text2);font-weight:600;margin-bottom:10px">Set up a game, then loop it automatically. Wheel spins, picks a winner, restarts after a wait — perfect for long streams.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">⏳ Wait between rounds (min)</label>
+                <input class="form-input" type="number" id="cycleWaitMins" min="0.5" step="0.5" value="5" placeholder="5">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">🔄 Loops <span style="font-weight:500">(0 = ∞)</span></label>
+                <input class="form-input" type="number" id="cycleLoopCount" min="0" value="0" placeholder="0 = unlimited">
+              </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.82rem;cursor:pointer;margin-bottom:10px">
+              <input type="checkbox" id="cycleAutoclearEntries" style="width:15px;height:15px;accent-color:var(--accent6)">
+              🧹 Auto-clear entries each round
+              <span style="font-size:0.68rem;font-weight:600;color:var(--text2)">(off = keep entries, great for recurring viewer pools)</span>
+            </label>
+            <div id="cycleStatusMsg" style="font-size:0.78rem;font-weight:700;color:var(--accent6);display:none;padding:6px 10px;background:rgba(199,125,255,0.1);border-radius:8px;border:1px solid var(--accent6);margin-bottom:8px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" class="btn btn-primary btn-sm" id="cycleStartBtn" onclick="swPremiumAction('startAutoCycle')">▶ Start Cycle</button>
+              <button type="button" class="btn btn-danger btn-sm" id="cycleStopBtn" onclick="stopAutoCycle()" style="display:none">⏹ Stop Cycle</button>
+            </div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:8px">💡 Set up prize &amp; mode in Game tab first, add entries, then start the cycle here.</div>
           </div>
-          <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:8px">💡 Set up prize &amp; mode in Game tab first, add entries, then start the cycle here.</div>
         </div>
       </div>
 
@@ -2321,34 +2271,42 @@ body {
         </div>
       </div>
 
-      <!-- Ad / Sponsor banner -->
+      <!-- Ad / Sponsor banner — Premium Feature -->
       <div class="panel" style="margin-bottom:16px">
         <button class="section-toggle-btn open" onclick="toggleSection('adSection', this)">
-          <span>📢 Ad / Sponsor Banner</span>
+          <span>📢 Ad / Sponsor Banner <span class="api-badge" style="margin-left:6px">⭐ Premium</span></span>
           <span class="toggle-icon">▲</span>
         </button>
         <div class="collapsible-section" id="adSection" style="margin-top:10px">
-          <p style="font-size:0.8rem;color:var(--text2);font-weight:600;margin-bottom:10px">Shows a sponsor strip below the entries panel during streams.</p>
-          <label style="display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;margin-bottom:12px;font-size:0.85rem">
-            <input type="checkbox" id="adEnabled" onchange="updateAdBanner()" style="width:16px;height:16px;accent-color:var(--accent1)"> Enable Banner
-          </label>
-          <div class="form-group">
-            <label class="form-label">📝 Ad Text <span style="font-weight:500">(max 150 characters)</span></label>
-            <textarea class="form-textarea" id="adTextInput" placeholder="Sponsor message or ad text here…" oninput="enforceAdTextLimit()" style="height:60px"></textarea>
-            <div style="display:flex;justify-content:space-between;margin-top:3px">
-              <span id="adTextCharCount" style="font-size:0.72rem;color:var(--text2);font-weight:700">0 / 150</span>
+          <!-- Premium notice -->
+          <div id="adBannerPremiumNotice" class="sw-premium-notice" style="display:none">
+            <i class="sw-premium-notice-icon" title="Premium feature">⭐</i>
+            <span>The Ad / Sponsor Banner is a <strong>Premium</strong> feature. Subscribe to <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou on Xsee</a> to unlock.</span>
+          </div>
+          <!-- Content -->
+          <div id="adBannerContent">
+            <p style="font-size:0.8rem;color:var(--text2);font-weight:600;margin-bottom:10px">Shows a sponsor strip below the entries panel during streams.</p>
+            <label style="display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;margin-bottom:12px;font-size:0.85rem">
+              <input type="checkbox" id="adEnabled" onchange="updateAdBanner()" style="width:16px;height:16px;accent-color:var(--accent1)"> Enable Banner
+            </label>
+            <div class="form-group">
+              <label class="form-label">📝 Ad Text <span style="font-weight:500">(max 150 characters)</span></label>
+              <textarea class="form-textarea" id="adTextInput" placeholder="Sponsor message or ad text here…" oninput="enforceAdTextLimit()" style="height:60px"></textarea>
+              <div style="display:flex;justify-content:space-between;margin-top:3px">
+                <span id="adTextCharCount" style="font-size:0.72rem;color:var(--text2);font-weight:700">0 / 150</span>
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">🖼️ Image URL <span style="font-weight:500">(optional)</span></label>
-            <input class="form-input" id="adImageUrl" placeholder="https://example.com/sponsor.png" oninput="updateAdBanner()">
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="saveAdSettings()">💾 Save & Apply</button>
-          <div style="margin-top:10px;font-size:0.76rem;font-weight:600;color:var(--text2)">Preview:</div>
-          <div class="ad-banner active" id="adSettingsPreview" style="display:block;margin-top:5px">
-            <div class="ad-label">Advertisement</div>
-            <img id="adPreviewImg" src="" alt="" style="display:none;max-width:240px;border-radius:6px;margin:0 auto 4px">
-            <div class="ad-banner-text" id="adPreviewText" style="color:var(--text2);font-style:italic">Fill in content above.</div>
+            <div class="form-group">
+              <label class="form-label">🖼️ Image URL <span style="font-weight:500">(optional)</span></label>
+              <input class="form-input" id="adImageUrl" placeholder="https://example.com/sponsor.png" oninput="updateAdBanner()">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveAdSettings()">💾 Save &amp; Apply</button>
+            <div style="margin-top:10px;font-size:0.76rem;font-weight:600;color:var(--text2)">Preview:</div>
+            <div class="ad-banner active" id="adSettingsPreview" style="display:block;margin-top:5px">
+              <div class="ad-label">Advertisement</div>
+              <img id="adPreviewImg" src="" alt="" style="display:none;max-width:240px;border-radius:6px;margin:0 auto 4px">
+              <div class="ad-banner-text" id="adPreviewText" style="color:var(--text2);font-style:italic">Fill in content above.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -4492,6 +4450,7 @@ function escHtml(s) {
     try {
       history.replaceState(null, '', (location.pathname || '') + '#app');
     } catch (e) {}
+    if (typeof swApplyPremiumGates === 'function') swApplyPremiumGates();
   };
 
   window.swlLogoutToLanding = function () {
@@ -4539,6 +4498,9 @@ function escHtml(s) {
   window.swlSwitchAuthTab = function(tab) {
     document.getElementById('swPanelSignin').style.display = tab === 'signin' ? '' : 'none';
     document.getElementById('swPanelRegister').style.display = tab === 'register' ? '' : 'none';
+    document.getElementById('swTabSignin').classList.toggle('active', tab === 'signin');
+    document.getElementById('swTabRegister').classList.toggle('active', tab === 'register');
+    // Apply discord link from config
     var discordLink = document.getElementById('swForgotDiscordLink');
     if (discordLink && SWL_CONFIG.discordUrl) discordLink.href = SWL_CONFIG.discordUrl;
   };
@@ -4612,7 +4574,7 @@ function escHtml(s) {
       var credential = fb.EmailAuthProvider.credential(_usernameToEmail(username), currentPw);
       await fb.reauthenticateWithCredential(user, credential);
       // Now update the password
-      var { updatePassword } = fb;
+      var { updatePassword } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
       await updatePassword(user, newPw);
       // Clear the fields
       ['cpCurrentPw','cpNewPw','cpConfirmPw'].forEach(function(id) {
@@ -4663,7 +4625,6 @@ function escHtml(s) {
     if (!fb) { showToast('\u26A0\uFE0F Still loading — please wait a moment'); return; }
     try {
       showToast('\uD83D\uDD04 Signing in\u2026');
-      window._swExplicitLoginDone = true;
       await fb.signInWithEmailAndPassword(fb.auth, _usernameToEmail(username), pass);
       localStorage.setItem('sw_username', username);
       showToast('\u2705 Welcome back, ' + username + '!');
@@ -4695,7 +4656,6 @@ function escHtml(s) {
     if (!fb) { showToast('\u26A0\uFE0F Still loading — please wait a moment'); return; }
     try {
       showToast('\uD83D\uDD04 Creating account\u2026');
-      window._swExplicitLoginDone = true;
       var cred = await fb.createUserWithEmailAndPassword(fb.auth, _usernameToEmail(username), pass);
       await fb.setDoc(fb.doc(fb.db, 'hosts', cred.user.uid), {
         username: username,
@@ -4817,6 +4777,8 @@ function escHtml(s) {
 
     // Apply stream mode on load
     swApplyStreamMode();
+    // Apply premium gates
+    if (typeof swApplyPremiumGates === 'function') swApplyPremiumGates();
   };
 
   // ── Load leaderboard from Firestore → localStorage, with timestamp safety ──
@@ -4855,7 +4817,7 @@ function escHtml(s) {
       });
       lb.sort(function(a,b) { return b.points - a.points; });
       localStorage.setItem('sw_lb', JSON.stringify(lb));
-      localStorage.setItem('sw_lb_last_sync', new Date(cloudSyncMs).toLocaleString());
+      localStorage.setItem('sw_lb_last_sync', new Date(cloudSyncMs).toISOString());
 
       if (typeof leaderboard !== 'undefined') {
         leaderboard.length = 0;
@@ -4897,16 +4859,16 @@ function escHtml(s) {
       if (!silent && btn) { btn.disabled = true; btn.textContent = '\u23F3 Syncing\u2026'; }
       var raw = JSON.parse(localStorage.getItem('sw_lb') || '[]');
       var players = raw.map(function(e) {
-        return { username: e.name, points: e.points || 0, wins: e.wins || 0, lastUpdated: fb.serverTimestamp() };
+        return { username: e.name, points: e.points || 0, wins: e.wins || 0, lastUpdated: new Date().toISOString() };
       });
       await fb.setDoc(fb.doc(fb.db, 'leaderboards', user.uid), {
         players: players,
         lastSynced: fb.serverTimestamp()
       });
-      var now = new Date().toLocaleString();
-      localStorage.setItem('sw_lb_last_sync', now);
+      var nowIso = new Date().toISOString();
+      localStorage.setItem('sw_lb_last_sync', nowIso);
       var lastSyncEl = document.getElementById('lbLastSyncedText');
-      if (lastSyncEl) lastSyncEl.textContent = 'Last synced: ' + now;
+      if (lastSyncEl) lastSyncEl.textContent = 'Last synced: ' + new Date(nowIso).toLocaleString();
       if (!silent) showToast('\u2705 Leaderboard synced to cloud!');
     } catch (e) {
       if (!silent) {
@@ -4921,6 +4883,42 @@ function escHtml(s) {
 
   // ── Legacy alias (swlShowRegister was called by old "Create one free" link) ──
   window.swlShowRegister = function() { window.swlSwitchAuthTab('register'); window.swlScrollToLogin(); };
+
+  // ── Premium gate helper ──
+  // Called by onclick attributes on gated buttons so they check premium before acting.
+  window.swPremiumAction = function(fnName, arg) {
+    var user = window._swCurrentUser;
+    if (!user || !user.isPremium) {
+      showToast('\u2B50 This is a Premium feature. Subscribe to Iwatchyou on Xsee to unlock!');
+      return;
+    }
+    // Call the real function
+    if (typeof window[fnName] === 'function') window[fnName](arg);
+    else if (typeof eval(fnName) === 'function') eval(fnName)(arg);
+  };
+
+  // ── Apply premium gates to all gated UI sections ──
+  window.swApplyPremiumGates = function() {
+    var isPremium = !!(window._swCurrentUser && window._swCurrentUser.isPremium);
+
+    // Auto-loop cycle
+    var cycleNotice  = document.getElementById('autoCyclePremiumNotice');
+    var cycleContent = document.getElementById('autoCycleContent');
+    if (cycleNotice)  cycleNotice.style.display  = isPremium ? 'none' : 'flex';
+    if (cycleContent) cycleContent.classList.toggle('sw-premium-gate', !isPremium);
+
+    // Wheel logo + center size
+    var logoNotice  = document.getElementById('wheelLogoPremiumNotice');
+    var logoContent = document.getElementById('wheelLogoContent');
+    if (logoNotice)  logoNotice.style.display  = isPremium ? 'none' : 'flex';
+    if (logoContent) logoContent.classList.toggle('sw-premium-gate', !isPremium);
+
+    // Ad / sponsor banner
+    var adNotice  = document.getElementById('adBannerPremiumNotice');
+    var adContent = document.getElementById('adBannerContent');
+    if (adNotice)  adNotice.style.display  = isPremium ? 'none' : 'flex';
+    if (adContent) adContent.classList.toggle('sw-premium-gate', !isPremium);
+  };
 
   // ── Auto-sync on page close / refresh (premium only) ──
   window.addEventListener('beforeunload', function() {
