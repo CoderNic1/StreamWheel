@@ -3,6 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Content Security Policy: restricts scripts/styles to known safe origins -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://www.gstatic.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com;
+  img-src 'self' data: https:;
+  connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://raw.githubusercontent.com https://firestore.googleapis.com;
+  frame-src 'none';
+  object-src 'none';
+">
 <title>StreamWheel — Spin Your Stream</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -568,7 +579,7 @@ body {
 }
 
 /* ===== CONFETTI ===== */
-.confetti-container { position: fixed; inset: 0; pointer-events: none; z-index: 999; overflow: hidden; }
+.confetti-container { position: fixed; inset: 0; pointer-events: none; z-index: 480; overflow: hidden; }
 .confetti-piece {
   position: absolute; width: 8px; height: 12px; opacity: 0;
   animation: confetti-fall 3s ease-out forwards; border-radius: 2px;
@@ -1187,6 +1198,51 @@ body {
 }
 .btn-premium-cta:hover { transform: translateY(-2px); box-shadow: 0 0 50px rgba(245,166,35,0.5); }
 
+/* ===== XSEE HOW-TO MODAL ===== */
+.xsee-steps { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; }
+.xsee-step {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: rgba(77,150,255,0.05);
+  border: 1.5px solid rgba(77,150,255,0.18);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  transition: border-color 0.2s;
+}
+.xsee-step:hover { border-color: rgba(77,150,255,0.38); }
+.xsee-step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #4d96ff, #7c3aed);
+  color: #fff; font-family: var(--font-display);
+  font-size: 0.9rem; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; margin-top: 1px;
+  box-shadow: 0 0 12px rgba(77,150,255,0.3);
+}
+.xsee-step-body { flex: 1; }
+.xsee-step-title { font-weight: 900; font-size: 0.9rem; color: var(--text); margin-bottom: 3px; }
+.xsee-step-desc { font-size: 0.8rem; font-weight: 600; color: var(--text2); line-height: 1.55; }
+.xsee-step-desc a { color: var(--accent4); text-decoration: none; font-weight: 800; }
+.xsee-step-desc a:hover { text-decoration: underline; }
+.xsee-modal-cta {
+  text-align: center; padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(77,150,255,0.08), rgba(124,58,237,0.08));
+  border: 1.5px solid rgba(77,150,255,0.25);
+  border-radius: var(--radius-sm);
+}
+.xsee-modal-cta-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, #4d96ff, #7c3aed);
+  color: #fff; border: none; border-radius: 24px;
+  padding: 11px 28px; font-family: var(--font-display);
+  font-size: 1.05rem; cursor: pointer; text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 18px rgba(77,150,255,0.3);
+}
+.xsee-modal-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(77,150,255,0.45); }
+.xsee-referral-notice {
+  margin-top: 12px; font-size: 0.7rem; font-weight: 600;
+  color: var(--text3); opacity: 0.7; letter-spacing: 0.01em;
+}
+
 /* ===== FOOTER ===== */
 .footer {
   position: relative; z-index: 1;
@@ -1349,6 +1405,10 @@ body {
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
+    // NOTE: This key is intentionally public (Firebase web apps work this way).
+    // IMPORTANT: Protect your data by setting strict Firestore Security Rules in
+    // the Firebase Console — only authenticated users should be able to read/write
+    // their own documents (e.g. allow read, write: if request.auth.uid == userId).
     apiKey: "AIzaSyC9ntqMcWAeW1e0UMafiFv59Ez4GnyWwjA",
     authDomain: "streamwheel-a9b07.firebaseapp.com",
     projectId: "streamwheel-a9b07",
@@ -1495,7 +1555,7 @@ body {
       <!-- Xsee tip banner -->
       <div style="display:flex;align-items:flex-start;gap:10px;background:rgba(77,150,255,0.1);border:1.5px solid rgba(77,150,255,0.35);border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:0.8rem;font-weight:700;color:var(--text2);line-height:1.5">
         <span style="font-size:1.1rem;flex-shrink:0">💡</span>
-        <span>We recommend using the <strong style="color:var(--text)">same username as on Xsee</strong> so your identity stays consistent across platforms.</span>
+        <span>We recommend using the <strong style="color:var(--text)">same username as on Xsee</strong> so your identity stays consistent across platforms. No Xsee account yet? <button type="button" onclick="swlOpenModal('xseeHowToModal')" style="background:none;border:none;padding:0;cursor:pointer;color:var(--accent4);font-weight:800;font-size:inherit;font-family:inherit;text-decoration:underline">How to register →</button></span>
       </div>
 
       <div class="form-field">
@@ -1538,6 +1598,62 @@ body {
   </div>
   <div>© 2026 StreamWheel</div>
 </footer>
+
+<!-- ===== XSEE HOW-TO MODAL ===== -->
+<div class="swl-modal-backdrop" id="xseeHowToModal">
+  <div class="swl-modal-box" style="max-width:520px">
+    <div class="swl-modal-header">
+      <div class="swl-modal-title">📡 How to join Xsee</div>
+      <button type="button" class="swl-modal-close-btn" onclick="swlCloseModal('xseeHowToModal')">✕</button>
+    </div>
+    <div class="swl-modal-body">
+      <p style="font-size:0.85rem;font-weight:700;color:var(--text2);margin-bottom:18px;line-height:1.6">Xsee is the streaming platform StreamWheel is built around. Creating an account only takes a minute — here's how:</p>
+
+      <div class="xsee-steps">
+        <div class="xsee-step">
+          <div class="xsee-step-num">1</div>
+          <div class="xsee-step-body">
+            <div class="xsee-step-title">Go to Xsee.tv</div>
+            <div class="xsee-step-desc">Open <a href="https://xsee.tv/?ref=CD292248" target="_blank" rel="noopener noreferrer">xsee.tv</a> in your browser. You'll land on the homepage.</div>
+          </div>
+        </div>
+        <div class="xsee-step">
+          <div class="xsee-step-num">2</div>
+          <div class="xsee-step-body">
+            <div class="xsee-step-title">Click "Sign Up"</div>
+            <div class="xsee-step-desc">Hit the <strong style="color:var(--text)">Sign Up</strong> button in the top-right corner of the page.</div>
+          </div>
+        </div>
+        <div class="xsee-step">
+          <div class="xsee-step-num">3</div>
+          <div class="xsee-step-body">
+            <div class="xsee-step-title">Choose your username</div>
+            <div class="xsee-step-desc">Pick a username — <strong style="color:var(--text)">use this same username here in StreamWheel</strong> so everything lines up neatly.</div>
+          </div>
+        </div>
+        <div class="xsee-step">
+          <div class="xsee-step-num">4</div>
+          <div class="xsee-step-body">
+            <div class="xsee-step-title">Complete registration</div>
+            <div class="xsee-step-desc">Fill in your email and password, confirm your account, and you're in. Takes about 60 seconds.</div>
+          </div>
+        </div>
+        <div class="xsee-step">
+          <div class="xsee-step-num">5</div>
+          <div class="xsee-step-body">
+            <div class="xsee-step-title">Come back and register here</div>
+            <div class="xsee-step-desc">Once your Xsee account is set up, return to StreamWheel and create your account using that same username.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="xsee-modal-cta">
+        <a href="https://xsee.tv/?ref=CD292248" target="_blank" rel="noopener noreferrer" class="xsee-modal-cta-btn">🚀 Create Xsee account</a>
+        <div class="xsee-referral-notice">You'll be signing up via a StreamWheel referral link — thank you for supporting us!</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ===== UPDATE LOG MODAL ===== -->
 <div class="swl-modal-backdrop" id="updateLogModal">
@@ -3434,7 +3550,7 @@ function renderLeaderboard() {
       <td>${entry.wins}</td>
       <td class="lb-points-cell">${entry.points}</td>
       <td class="lb-prize-cell">${escHtml(prize)}</td>
-      <td><button class="btn btn-secondary btn-xs" onclick="removeLbEntry('${escHtml(entry.name).replace(/'/g,"\\'")}')">✕</button></td>
+      <td><button class="btn btn-secondary btn-xs lb-remove-btn" data-name="${escHtml(entry.name)}">✕</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -3456,6 +3572,14 @@ function removeLbEntry(name) {
   renderLeaderboard(); updateLbPreview();
   showToast('✕ Removed from leaderboard.');
 }
+
+// Delegated click handler for leaderboard remove buttons (avoids inline onclick with user data)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.lb-remove-btn');
+  if (!btn) return;
+  const name = btn.getAttribute('data-name');
+  if (name) removeLbEntry(name);
+});
 
 function clearLeaderboard() {
   if (!confirm('Reset the entire leaderboard?')) return;
@@ -3565,7 +3689,8 @@ function updateAdPreview() {
   const text = document.getElementById('adTextInput').value.trim();
   const imgUrl = document.getElementById('adImageUrl').value.trim();
   const prevImg = document.getElementById('adPreviewImg'), prevText = document.getElementById('adPreviewText');
-  if (imgUrl) { prevImg.src = imgUrl; prevImg.style.display = 'block'; } else { prevImg.style.display = 'none'; }
+  const safeUrl = _swSafeImgSrc(imgUrl);
+  if (safeUrl) { prevImg.src = safeUrl; prevImg.style.display = 'block'; } else { prevImg.src = ''; prevImg.style.display = 'none'; }
   if (text) { prevText.textContent = text; prevText.style.fontStyle='normal'; prevText.style.color='var(--text)'; }
   else { prevText.textContent = 'Fill in content above.'; prevText.style.fontStyle='italic'; prevText.style.color='var(--text2)'; }
 }
@@ -3578,12 +3703,19 @@ function saveAdSettings() {
   localStorage.setItem('sw_ad', JSON.stringify(adSettings));
   applyAdBanner(); showToast('💾 Ad settings saved!');
 }
+function _swSafeImgSrc(url) {
+  // Only allow https:// image URLs — block javascript: and data: URIs
+  if (!url) return '';
+  var trimmed = url.trim();
+  return /^https:\/\//i.test(trimmed) ? trimmed : '';
+}
 function applyAdBanner() {
   const banner = document.getElementById('adBanner'); if (!banner) return;
   if (!adSettings.enabled) { banner.classList.remove('active'); return; }
   banner.classList.add('active');
   const img = document.getElementById('adImage'), text = document.getElementById('adText');
-  if (adSettings.imageUrl) { img.src = adSettings.imageUrl; img.style.display = 'block'; } else { img.style.display = 'none'; }
+  const safeUrl = _swSafeImgSrc(adSettings.imageUrl);
+  if (safeUrl) { img.src = safeUrl; img.style.display = 'block'; } else { img.src = ''; img.style.display = 'none'; }
   text.textContent = adSettings.text || '';
 }
 
@@ -4294,8 +4426,17 @@ function cycleRunLoop(waitMins) {
     const entries = getEntries();
     if (entries.length < 2) {
       cycleSetStatus(`⚠️ ${loopLabel} skipped — not enough entries.`);
-      showToast('⚠️ Skipped — add at least 2 entries next round!');
-      setTimeout(() => { if (cycleState.running) cycleRunLoop(waitMins); }, 3000);
+      showToast('⚠️ Skipped — add at least 2 entries! Next round in 5s…');
+      let skipLeft = 5;
+      const skipInterval = setInterval(() => {
+        skipLeft--;
+        if (skipLeft <= 0) {
+          clearInterval(skipInterval);
+          if (cycleState.running) cycleRunLoop(waitMins);
+        } else {
+          cycleSetStatus(`⚠️ ${loopLabel} skipped — next round in ${skipLeft}s…`);
+        }
+      }, 1000);
       return;
     }
 
@@ -4400,7 +4541,17 @@ function exportCycleLogCSV() {
 // ==========================================
 //  UTILITIES
 // ==========================================
-function setStatus(html) { document.getElementById('statusMsg').innerHTML = html; }
+function setStatus(html) {
+  // Only allow our known safe HTML tags (strong); escape everything else
+  var el = document.getElementById('statusMsg');
+  if (!el) return;
+  // Allow <strong> for highlighting, but sanitize by replacing via DOM
+  var clean = String(html)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Re-allow only <strong>…</strong> we purposely pass in
+    .replace(/&lt;strong&gt;/g, '<strong>').replace(/&lt;\/strong&gt;/g, '</strong>');
+  el.innerHTML = clean;
+}
 function toggleSection(sectionId, btn) {
   const section = document.getElementById(sectionId);
   if (!section) return;
@@ -4466,7 +4617,7 @@ function escHtml(s) {
     try {
       history.replaceState(null, '', (location.pathname || '') + (location.search || ''));
     } catch (e) {}
-    var em = document.getElementById('loginEmail');
+    var em = document.getElementById('loginUsername');
     var pw = document.getElementById('loginPassword');
     if (em) em.value = '';
     if (pw) pw.value = '';
@@ -4886,15 +5037,25 @@ function escHtml(s) {
 
   // ── Premium gate helper ──
   // Called by onclick attributes on gated buttons so they check premium before acting.
+  // Whitelist of functions that can be triggered via swPremiumAction
+  var SW_PREMIUM_FN_WHITELIST = [
+    'startAutoCycle', 'stopAutoCycle', 'swSyncLeaderboardToCloud',
+    'exportLbCSV', 'clearLeaderboard', 'saveAdSettings',
+    'applyAdBanner', 'loadWheelLogoFromStorage', 'clearWheelLogo'
+  ];
+
   window.swPremiumAction = function(fnName, arg) {
     var user = window._swCurrentUser;
     if (!user || !user.isPremium) {
       showToast('\u2B50 This is a Premium feature. Subscribe to Iwatchyou on Xsee to unlock!');
       return;
     }
-    // Call the real function
+    // Only call explicitly whitelisted functions — never eval()
+    if (SW_PREMIUM_FN_WHITELIST.indexOf(fnName) === -1) {
+      console.warn('[StreamWheel] swPremiumAction: blocked unknown function "' + fnName + '"');
+      return;
+    }
     if (typeof window[fnName] === 'function') window[fnName](arg);
-    else if (typeof eval(fnName) === 'function') eval(fnName)(arg);
   };
 
   // ── Apply premium gates to all gated UI sections ──
@@ -5093,8 +5254,8 @@ function escHtml(s) {
 
     html +=
     '</div><div class="premium-cta-wrap">' +
-    '<a href="https://xsee.tv/iwatchyou" target="_blank" class="btn-premium-cta">⭐ Upgrade to Premium by subscribing</a>' +
-    '<div style="font-size:0.75rem;color:var(--text3);margin-top:10px;font-weight:600">Cancel anytime · Secure payment. Dont have an Xsee profile yet? Sign up <a href="https://xsee.tv/?ref=CD292248" target="_blank class="btn-premium-cta" > here</a></div></div>';
+    '<a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer" class="btn-premium-cta">⭐ Upgrade to Premium by subscribing</a>' +
+    '<div style="font-size:0.75rem;color:var(--text3);margin-top:10px;font-weight:600">Cancel anytime · Secure payment. Dont have an Xsee profile yet? Sign up <a href="https://xsee.tv/?ref=CD292248" target="_blank" rel="noopener noreferrer" class="btn-premium-cta"> here</a></div></div>';
   return html;
   }
 
