@@ -10,7 +10,18 @@
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src https://fonts.gstatic.com;
   img-src 'self' data: https:;
-  connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://raw.githubusercontent.com https://firestore.googleapis.com;
+  connect-src 'self'
+    https://*.googleapis.com
+    https://identitytoolkit.googleapis.com
+    https://securetoken.googleapis.com
+    https://firebase.googleapis.com
+    https://firebaseinstallations.googleapis.com
+    https://firebasestorage.googleapis.com
+    https://*.firebasestorage.app
+    https://*.firebaseio.com
+    wss://*.firebaseio.com
+    https://raw.githubusercontent.com
+    https://firestore.googleapis.com;
   frame-src 'none';
   object-src 'none';
 ">
@@ -3112,10 +3123,15 @@ async function fetchSpaceParticipants(fromSettings) {
     setXseeStatus(msg, false);
     showToast(added ? '📡 ' + msg : 'ℹ️ All names already in list');
   } catch (e) {
-    const hint = e.status === 404 ? ' — not live?' : (e.status === 500 ? ' — set XSEE_API_KEY on Vercel?' : '');
+    let hint = '';
+    if (e.status === 404) hint = ' — go live on Xsee first?';
+    else if (e.status === 401 || e.status === 403) hint = ' — check XSEE_API_KEY / scopes on Vercel';
+    else if (e.status === 500) hint = ' — set XSEE_API_KEY on Vercel?';
+    else if (!e.status) hint = ' — blocked? Open /api/xsee/me in browser; check console CSP';
     setXseeStatus((e.message || 'Fetch failed') + hint, true);
     if (e.status === 404) showToast('⚠️ No active stream for @' + host);
-    else showToast('❌ ' + (e.message || 'Fetch failed'));
+    else showToast('❌ ' + (e.message || 'Fetch failed') + hint);
+    console.error('[Xsee fetch]', e.status, e.code, e.message, e.details);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📡 Fetch'; }
   }
@@ -4867,8 +4883,8 @@ function escHtml(s) {
   'use strict';
 
   const SWL_CONFIG = {
-    updateLogUrl: 'https://raw.githubusercontent.com/CoderNic1/TestStreamWheel/main/streamwheel_updates.txt',
-    premiumUrl:   'https://raw.githubusercontent.com/CoderNic1/TestStreamWheel/main/streamwheel_premium.txt',
+    updateLogUrl: 'https://raw.githubusercontent.com/CoderNic1/StreamWheel/main/streamwheel_updates.txt',
+    premiumUrl:   'https://raw.githubusercontent.com/CoderNic1/StreamWheel/main/streamwheel_premium.txt',
     /** Your permanent Discord invite (same as footer link). */
     discordUrl: 'https://discord.gg/DhDzyC94mV',
   };
