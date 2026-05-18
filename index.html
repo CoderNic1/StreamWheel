@@ -1505,7 +1505,7 @@ body {
   <div class="feature-chip"><span class="feature-chip-icon">🎡</span> Classic & Elimination</div>
   <div class="feature-chip"><span class="feature-chip-icon">🏅</span> Live Leaderboard</div>
   <div class="feature-chip"><span class="feature-chip-icon">⏱️</span> Countdown Timer</div>
-  <div class="feature-chip"><span class="feature-chip-icon">📡</span> Xsee API (coming soon)</div>
+  <div class="feature-chip"><span class="feature-chip-icon">📡</span> Xsee API</div>
   <div class="feature-chip"><span class="feature-chip-icon">🔊</span> Sound Effects</div>
   <div class="feature-chip"><span class="feature-chip-icon">🎵</span> Background Music</div>
   <div class="feature-chip"><span class="feature-chip-icon">⌨️</span> Keyboard Shortcuts</div>
@@ -1747,6 +1747,7 @@ body {
     </div>
     <div class="result-btns">
       <button class="btn btn-primary" onclick="copyWinnerResult()">📋 Copy for Chat</button>
+      <button class="btn btn-secondary" id="xseeSendChatBtn" onclick="sendWinnerToXseeChat()" style="display:none">📡 Send to Xsee</button>
       <button class="btn btn-secondary" onclick="closeResult()">Continue</button>
     </div>
   </div>
@@ -1894,15 +1895,15 @@ body {
           </div>
         </div>
 
-        <!-- Future: Xsee API fetch -->
+        <!-- Xsee API fetch -->
         <div style="margin-bottom:6px">
           <div style="display:flex;gap:6px;margin-bottom:5px">
-            <input class="form-input" id="xseeSpaceUrl" placeholder="🔗 Xsee Space URL (coming soon…)" style="flex:1;font-size:0.76rem;opacity:0.7" disabled />
-            <button class="fetch-space-btn" style="width:auto;padding:7px 10px;font-size:0.76rem" onclick="fetchSpaceParticipants()" disabled id="fetchSpaceBtn" title="Fetch participants from Xsee Space — API coming soon">
+            <input class="form-input" id="xseeSpaceUrl" placeholder="https://xsee.tv/yourname" style="flex:1;font-size:0.76rem" oninput="saveXseeSpaceLinkFromGame()" />
+            <button class="fetch-space-btn ready" style="width:auto;padding:7px 10px;font-size:0.76rem" onclick="fetchSpaceParticipants()" id="fetchSpaceBtn" title="Fetch live viewers from your Xsee stream">
               📡 Fetch
             </button>
           </div>
-          <div class="api-badge" style="font-size:0.68rem;margin-bottom:4px">🔌 Xsee API — coming soon</div>
+          <div id="xseeFetchStatus" style="font-size:0.68rem;font-weight:700;color:var(--text2);margin-bottom:4px"></div>
         </div>
 
         <div id="maxEntriesWarning" style="display:none;background:rgba(255,146,43,0.12);border:1.5px solid var(--accent5);border-radius:8px;padding:6px 10px;font-size:0.76rem;font-weight:700;color:var(--accent5);margin-bottom:6px">
@@ -2249,28 +2250,52 @@ body {
 
     <!-- RIGHT COLUMN -->
     <div>
-      <!-- Integrations (coming soon) -->
+      <!-- Integrations -->
       <div class="panel" style="margin-bottom:16px;border:1.5px dashed var(--accent4)">
         <button class="section-toggle-btn open" onclick="toggleSection('integrationsSection', this)">
-          <span style="color:var(--accent4)">🔌 Integrations <span class="api-badge" style="margin-left:6px">Coming Soon</span></span>
+          <span style="color:var(--accent4)">🔌 Integrations <span class="api-badge" style="margin-left:6px;background:rgba(107,203,119,0.2);color:var(--accent3)">Xsee Live</span></span>
           <span class="toggle-icon">▲</span>
         </button>
         <div class="collapsible-section" id="integrationsSection" style="margin-top:12px">
-          <p style="font-size:0.78rem;font-weight:600;color:var(--text2);margin-bottom:12px">Connect your stream tools here. API keys are stored securely server-side — only space links and commands are needed from you.</p>
+          <p style="font-size:0.78rem;font-weight:600;color:var(--text2);margin-bottom:12px">API key stays on Vercel. Configure your Space URL and behavior below.</p>
           <div class="form-group">
-            <label class="form-label">🔗 Xsee Space Link <span style="font-weight:500;font-size:0.68rem">(once API is live)</span></label>
+            <label class="form-label">🔗 Xsee Space Link</label>
             <input class="form-input" id="xseeSpaceLink" placeholder="https://xsee.tv/yourspace" oninput="saveXseeSpaceLink()" />
-            <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Your Space URL — used to auto-fetch participants when the Xsee API goes live.</div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Channel must be <strong>live</strong> on Xsee when you fetch or post chat.</div>
+          </div>
+          <div class="form-group" style="display:flex;flex-direction:column;gap:8px">
+            <label class="lb-toggle-wrap" style="justify-content:flex-start">
+              <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
+              <span>📡 Auto-fetch participants every 60s</span>
+            </label>
+            <label class="lb-toggle-wrap" style="justify-content:flex-start">
+              <input type="checkbox" id="xseeAutoAnnounce" onchange="saveXseeIntegrationSettings()" />
+              <span>💬 Auto-post winner messages to Xsee chat</span>
+            </label>
+            <label class="lb-toggle-wrap" style="justify-content:flex-start">
+              <input type="checkbox" id="xseeAnnounceElim" onchange="saveXseeIntegrationSettings()" />
+              <span>💥 Also announce eliminations</span>
+            </label>
           </div>
           <div class="form-group">
-            <label class="form-label">💬 Auto-Join Chat Command</label>
+            <label class="form-label">📝 Winner chat template</label>
+            <input class="form-input" id="xseeAnnounceTemplate" placeholder="🎉 {winner} won &quot;{prize}&quot; on StreamWheel!" oninput="saveXseeIntegrationSettings()" />
+            <div style="font-size:0.68rem;font-weight:600;color:var(--text2);margin-top:3px">Placeholders: {winner} {prize} {remaining}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="testXseeConnection()">🔌 Test API</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="fetchSpaceParticipants(true)">📡 Fetch now</button>
+          </div>
+          <div id="xseeIntegrationStatus" style="font-size:0.72rem;font-weight:700;color:var(--text2);margin-bottom:8px"></div>
+          <div class="form-group">
+            <label class="form-label">💬 Auto-Join Chat Command <span style="font-weight:500;font-size:0.68rem">(future)</span></label>
             <div style="display:flex;gap:6px;align-items:center">
               <input class="form-input" id="chatJoinCommand" placeholder="e.g. !join or !enter" style="flex:1" oninput="saveChatCommand()">
             </div>
-            <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:4px">When chat API is connected, viewers typing this command will auto-join the entries list.</div>
+            <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:4px">Saved for when Xsee adds chat-read. Use Fetch for now.</div>
           </div>
           <div style="font-size:0.75rem;font-weight:600;color:var(--text2);line-height:1.55;background:var(--bg2);padding:8px 10px;border-radius:8px;border:1px solid var(--border)">
-            💡 <strong>Roadmap:</strong> Xsee Space → auto-fetch participants · Cloud winner storage (Premium)
+            💡 Install your Xsee App on the channel for chat posts. Test on your own live stream first.
           </div>
         </div>
       </div>
@@ -2601,6 +2626,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadWheelCenterSizeUI();
   loadChatCommand();
   loadXseeSpaceLink();
+  loadXseeIntegrationSettings();
   renderCycleLog();
   loadConfettiSettings();
   initOnboarding();
@@ -2936,19 +2962,251 @@ function shuffleEntries() {
 }
 
 // ==========================================
-//  XSEE API SCAFFOLD (future)
+//  XSEE API (via Vercel proxy /api/xsee/*)
 // ==========================================
-async function fetchSpaceParticipants() {
-  // TODO: Replace with real Xsee API call once credentials are available
-  // const spaceUrl = document.getElementById('xseeSpaceLink').value;
-  // const resp = await fetch(`https://api.xsee.io/v1/space/participants?url=${encodeURIComponent(spaceUrl)}`, {
-  //   headers: { 'Authorization': `Bearer BACKEND_KEY` }
-  // });
-  // const data = await resp.json();
-  // const names = data.participants.map(p => p.username);
-  // document.getElementById('entriesBox').value = names.join('\n');
-  // onEntriesInput();
-  showToast('🔌 Xsee API not connected yet — coming soon!');
+const XSEE_DEFAULT_TEMPLATE = '🎉 {winner} won "{prize}" on StreamWheel! ({remaining} left)';
+let _xseeAutoFetchTimer = null;
+let _lastXseeChatContext = null;
+
+function parseXseeHostUsername(input) {
+  const raw = (input || '').trim();
+  if (!raw) return '';
+  try {
+    const u = new URL(raw.startsWith('http') ? raw : 'https://xsee.tv/' + raw.replace(/^@/, ''));
+    const host = (u.hostname || '').toLowerCase();
+    if (host === 'xsee.tv' || host.endsWith('.xsee.tv')) {
+      return (u.pathname.replace(/^\//, '').split('/')[0] || '').toLowerCase();
+    }
+  } catch (e) { /* plain username */ }
+  return raw.replace(/^@/, '').split('/')[0].toLowerCase();
+}
+
+function getXseeHostUsername() {
+  const link = localStorage.getItem('sw_xsee_link') || '';
+  const cached = localStorage.getItem('sw_xsee_host') || '';
+  return parseXseeHostUsername(link) || cached;
+}
+
+async function xseeApi(path, options) {
+  const opts = options || {};
+  const res = await fetch('/api/xsee/' + path.replace(/^\//, ''), {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let json = {};
+  try { json = await res.json(); } catch (e) { /* non-json */ }
+  if (!res.ok) {
+    const err = new Error(json?.error?.message || res.statusText || 'Xsee API error');
+    err.status = res.status;
+    err.code = json?.error?.code;
+    err.details = json?.error?.details;
+    throw err;
+  }
+  return json.data;
+}
+
+function getXseeIntegrationSettings() {
+  return {
+    autoFetch: localStorage.getItem('sw_xsee_auto_fetch') === '1',
+    autoAnnounce: localStorage.getItem('sw_xsee_auto_announce') === '1',
+    announceElim: localStorage.getItem('sw_xsee_announce_elim') === '1',
+    template: localStorage.getItem('sw_xsee_announce_tpl') || XSEE_DEFAULT_TEMPLATE,
+  };
+}
+
+function saveXseeIntegrationSettings() {
+  const af = document.getElementById('xseeAutoFetch');
+  const aa = document.getElementById('xseeAutoAnnounce');
+  const ae = document.getElementById('xseeAnnounceElim');
+  const tpl = document.getElementById('xseeAnnounceTemplate');
+  if (af) localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  if (aa) localStorage.setItem('sw_xsee_auto_announce', aa.checked ? '1' : '0');
+  if (ae) localStorage.setItem('sw_xsee_announce_elim', ae.checked ? '1' : '0');
+  if (tpl) localStorage.setItem('sw_xsee_announce_tpl', tpl.value.trim() || XSEE_DEFAULT_TEMPLATE);
+  syncXseeAutoFetchTimer();
+}
+
+function loadXseeIntegrationSettings() {
+  const s = getXseeIntegrationSettings();
+  const af = document.getElementById('xseeAutoFetch');
+  const aa = document.getElementById('xseeAutoAnnounce');
+  const ae = document.getElementById('xseeAnnounceElim');
+  const tpl = document.getElementById('xseeAnnounceTemplate');
+  if (af) af.checked = s.autoFetch;
+  if (aa) aa.checked = s.autoAnnounce;
+  if (ae) ae.checked = s.announceElim;
+  if (tpl) tpl.value = s.template;
+  updateXseeSendChatButton();
+  syncXseeAutoFetchTimer();
+}
+
+function setXseeStatus(text, isError) {
+  const gameEl = document.getElementById('xseeFetchStatus');
+  const setEl = document.getElementById('xseeIntegrationStatus');
+  const msg = text || '';
+  if (gameEl) { gameEl.textContent = msg; gameEl.style.color = isError ? 'var(--accent1)' : 'var(--accent3)'; }
+  if (setEl) { setEl.textContent = msg; setEl.style.color = isError ? 'var(--accent1)' : 'var(--text2)'; }
+}
+
+function participantsToEntryNames(data) {
+  const roles = ['audience'];
+  let list = (data.participants || []).filter(p => roles.includes(p.role));
+  list = list.filter(p => !p.isAnonymous);
+  const names = list.map(p => (p.username || p.displayName || '').trim()).filter(Boolean);
+  const unique = [...new Set(names.map(n => n.toLowerCase()))].map(lower => {
+    return names.find(n => n.toLowerCase() === lower);
+  });
+  if (data.audienceTruncated) {
+    showToast('⚠️ Viewer list capped at 500 — partial fetch');
+  }
+  if (!data.audienceAvailable) {
+    showToast('⚠️ Live audience unavailable — showing roles only');
+  }
+  return unique;
+}
+
+function mergeParticipantsIntoEntries(names) {
+  if (!names.length) return 0;
+  const existing = getEntries();
+  const seen = new Set(existing.map(e => e.toLowerCase()));
+  const max = parseInt(document.getElementById('maxEntries').value, 10) || null;
+  let added = 0;
+  const merged = [...existing];
+  for (const n of names) {
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    if (max && merged.length >= max) break;
+    merged.push(n);
+    seen.add(key);
+    added++;
+  }
+  document.getElementById('entriesBox').value = merged.join('\n');
+  onEntriesInput();
+  return added;
+}
+
+async function fetchSpaceParticipants(fromSettings) {
+  const host = getXseeHostUsername();
+  if (!host) {
+    showToast('⚠️ Set your Xsee Space URL in Settings → Integrations');
+    if (!fromSettings) showTab('settings');
+    return;
+  }
+  const btn = document.getElementById('fetchSpaceBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+  setXseeStatus('Fetching participants…', false);
+  try {
+    const stream = await xseeApi('streams/' + encodeURIComponent(host));
+    if (stream.status !== 'live') {
+      setXseeStatus('Stream status: ' + stream.status + ' (need live)', true);
+      showToast('⚠️ No live stream — go live on Xsee first');
+      return;
+    }
+    const data = await xseeApi('streams/' + encodeURIComponent(host) + '/participants');
+    const names = participantsToEntryNames(data);
+    const added = mergeParticipantsIntoEntries(names);
+    const msg = added
+      ? '✅ Added ' + added + ' (' + data.total + ' on stream)'
+      : 'ℹ️ No new names (' + data.total + ' on stream)';
+    setXseeStatus(msg, false);
+    showToast(added ? '📡 ' + msg : 'ℹ️ All names already in list');
+  } catch (e) {
+    const hint = e.status === 404 ? ' — not live?' : (e.status === 500 ? ' — set XSEE_API_KEY on Vercel?' : '');
+    setXseeStatus((e.message || 'Fetch failed') + hint, true);
+    if (e.status === 404) showToast('⚠️ No active stream for @' + host);
+    else showToast('❌ ' + (e.message || 'Fetch failed'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📡 Fetch'; }
+  }
+}
+
+async function testXseeConnection() {
+  setXseeStatus('Testing API…', false);
+  try {
+    const me = await xseeApi('me');
+    const scopes = (me.key && me.key.scopes) ? me.key.scopes.join(', ') : '?';
+    setXseeStatus('✅ API OK — ' + (me.app?.name || 'App') + ' · scopes: ' + scopes, false);
+    showToast('✅ Xsee API connected');
+  } catch (e) {
+    setXseeStatus('❌ ' + (e.message || 'Test failed'), true);
+    showToast('❌ ' + (e.message || 'API test failed'));
+  }
+}
+
+function formatXseeChatMessage(ctx) {
+  const s = getXseeIntegrationSettings();
+  return (s.template || XSEE_DEFAULT_TEMPLATE)
+    .replace(/\{winner\}/g, ctx.winner || '')
+    .replace(/\{prize\}/g, ctx.prize || '')
+    .replace(/\{remaining\}/g, String(ctx.remaining ?? ''))
+    .slice(0, 500);
+}
+
+async function postXseeChatMessage(message) {
+  const host = getXseeHostUsername();
+  if (!host) throw new Error('No Xsee Space URL configured');
+  return xseeApi('streams/' + encodeURIComponent(host) + '/chat', {
+    method: 'POST',
+    body: { message },
+  });
+}
+
+async function maybeAnnounceToXsee(ctx) {
+  const s = getXseeIntegrationSettings();
+  if (!s.autoAnnounce) return;
+  if (ctx.kind === 'elim' && !s.announceElim) return;
+  try {
+    await postXseeChatMessage(formatXseeChatMessage(ctx));
+    showToast('📡 Posted to Xsee chat');
+  } catch (e) {
+    if (e.details && e.details.installUrl) {
+      showToast('⚠️ Install StreamWheel on channel — check Integrations');
+      console.warn('[Xsee] install:', e.details.installUrl);
+    } else {
+      showToast('❌ Chat: ' + (e.message || 'failed'));
+    }
+  }
+}
+
+function updateXseeSendChatButton() {
+  const btn = document.getElementById('xseeSendChatBtn');
+  if (!btn) return;
+  btn.style.display = getXseeHostUsername() ? 'inline-flex' : 'none';
+}
+
+async function sendWinnerToXseeChat() {
+  const ctx = _lastXseeChatContext;
+  if (!ctx) { showToast('⚠️ Nothing to send'); return; }
+  try {
+    await postXseeChatMessage(formatXseeChatMessage(ctx));
+    showToast('📡 Sent to Xsee chat!');
+  } catch (e) {
+    if (e.details && e.details.installUrl) showToast('⚠️ App must be installed on channel');
+    else showToast('❌ ' + (e.message || 'Send failed'));
+  }
+}
+
+function syncXseeAutoFetchTimer() {
+  if (_xseeAutoFetchTimer) { clearInterval(_xseeAutoFetchTimer); _xseeAutoFetchTimer = null; }
+  const s = getXseeIntegrationSettings();
+  if (!s.autoFetch || !getXseeHostUsername()) return;
+  _xseeAutoFetchTimer = setInterval(() => {
+    if (state.gameStarted && state.gameOver) return;
+    if (state.gameStarted && !state.countdownTimer && document.getElementById('entriesBox')?.readOnly) return;
+    fetchSpaceParticipants(true);
+  }, 60000);
+}
+
+function saveXseeSpaceLinkFromGame() {
+  const val = (document.getElementById('xseeSpaceUrl')?.value || '').trim();
+  localStorage.setItem('sw_xsee_link', val);
+  const host = parseXseeHostUsername(val);
+  if (host) localStorage.setItem('sw_xsee_host', host);
+  const settingsEl = document.getElementById('xseeSpaceLink');
+  if (settingsEl && settingsEl.value !== val) settingsEl.value = val;
+  updateXseeSendChatButton();
+  syncXseeAutoFetchTimer();
 }
 
 // ==========================================
@@ -3236,11 +3494,14 @@ function processClassicWin(landed, landedIdx) {
   playWin(); updateRemainingBadge();
 
   const isLast = state.winners.length >= state.maxWinners || state.remaining.length === 0;
+  const chatCtx = { winner: landed, prize: state.prize, remaining: state.remaining.length, kind: 'win' };
   if (isLast) {
-    showResultOverlay('🏆', 'Winner!', landed, state.prize, true);
+    showResultOverlay('🏆', 'Winner!', landed, state.prize, true, chatCtx);
+    maybeAnnounceToXsee(chatCtx);
     launchConfetti(); endGame();
   } else {
-    showResultOverlay('🏆', 'Winner!', landed, state.prize, false);
+    showResultOverlay('🏆', 'Winner!', landed, state.prize, false, chatCtx);
+    maybeAnnounceToXsee(chatCtx);
     drawWheel(state.remaining);
     setStatus(`🎉 <strong>${escHtml(landed)}</strong> wins! Spin for the next…`);
     document.getElementById('spinBtn').disabled = false;
@@ -3256,10 +3517,14 @@ function processElimination(landed, landedIdx) {
     const finalList = [...state.remaining];
     finalList.forEach(e => addWinner(e));
     state.remaining = [];
-    showResultOverlay('🏆', 'Winners!', finalList, state.prize, true);
+    const chatCtx = { winner: finalList.join(', '), prize: state.prize, remaining: 0, kind: 'win' };
+    showResultOverlay('🏆', 'Winners!', finalList, state.prize, true, chatCtx);
+    maybeAnnounceToXsee(chatCtx);
     endGame();
   } else {
-    showResultOverlay('💥', 'Eliminated!', landed, '', false);
+    const chatCtx = { winner: landed, prize: '', remaining: state.remaining.length, kind: 'elim' };
+    showResultOverlay('💥', 'Eliminated!', landed, '', false, chatCtx);
+    maybeAnnounceToXsee(chatCtx);
     drawWheel(state.remaining);
     setStatus(`💥 <strong>${escHtml(landed)}</strong> out! ${state.remaining.length} left…`);
     document.getElementById('spinBtn').disabled = false;
@@ -3420,9 +3685,20 @@ function initHeaderScrollHide() {
   document.querySelectorAll('.tab-page-scroll').forEach(el => el.addEventListener('scroll', onScroll, { passive: true }));
 }
 
-function showResultOverlay(emoji, title, nameOrNames, prize, isFinal) {
+function showResultOverlay(emoji, title, nameOrNames, prize, isFinal, chatCtx) {
   clearElimOverlayAutospin();
   const names = Array.isArray(nameOrNames) ? nameOrNames : [nameOrNames];
+  if (chatCtx) {
+    _lastXseeChatContext = chatCtx;
+  } else {
+    _lastXseeChatContext = {
+      winner: names.join(', '),
+      prize: prize || state.prize || '',
+      remaining: state.remaining.length,
+      kind: title.toLowerCase().includes('elim') ? 'elim' : 'win',
+    };
+  }
+  updateXseeSendChatButton();
   document.getElementById('resultEmoji').textContent = emoji;
   document.getElementById('resultTitle').textContent = title;
   const nameEl = document.getElementById('resultName');
@@ -3769,7 +4045,7 @@ function exportLogCSV() {
 function clearAllData() {
   if (!confirm('⚠️ Delete ALL data (log, leaderboard, settings, theme)? Cannot be undone.')) return;
   if (!confirm('🚨 Last chance — confirm full reset?')) return;
-  ['sw_log','sw_lb','sw_lbconfig','sw_ad','sw_theme','sw_wheel','sw_music_vol','sw_elim_autospin_sec','sw_ui_show_winners','sw_ui_show_eliminated','sw_ui_show_lb_preview','sw_wheel_logo','sw_chat_cmd','sw_xsee_link','sw_cycle_log','sw_confetti_enabled','sw_confetti_intensity','sw_first_setup_done','sw_center_size'].forEach(k => localStorage.removeItem(k));
+  ['sw_log','sw_lb','sw_lbconfig','sw_ad','sw_theme','sw_wheel','sw_music_vol','sw_elim_autospin_sec','sw_ui_show_winners','sw_ui_show_eliminated','sw_ui_show_lb_preview','sw_wheel_logo','sw_chat_cmd','sw_xsee_link','sw_xsee_host','sw_xsee_auto_fetch','sw_xsee_auto_announce','sw_xsee_announce_elim','sw_xsee_announce_tpl','sw_cycle_log','sw_confetti_enabled','sw_confetti_intensity','sw_first_setup_done','sw_center_size'].forEach(k => localStorage.removeItem(k));
   sessionStorage.removeItem(SESSION_KEY);
   gameLog=[]; leaderboard=[]; cycleLog=[];
   lbConfig = { ...LB_CONFIG_DEFAULTS, prizes: LB_CONFIG_DEFAULTS.prizes.map(p => ({ ...p })) };
@@ -3777,7 +4053,7 @@ function clearAllData() {
   currentTheme='colorful'; applyTheme('colorful');
   wheelLogoImg = null; updateWheelLogoPreviewUI(null);
   renderLog(); renderLeaderboard(); updateLbPreview(); loadLbConfig(); loadAdSettingsUI(); applyAdBanner();
-  loadGameSidebarUiSettings(); loadChatCommand(); loadXseeSpaceLink(); renderCycleLog();
+  loadGameSidebarUiSettings(); loadChatCommand(); loadXseeSpaceLink(); loadXseeIntegrationSettings(); renderCycleLog();
   showToast('🗑️ All data cleared!');
 }
 
@@ -4206,10 +4482,20 @@ function loadChatCommand() {
 function saveXseeSpaceLink() {
   const val = (document.getElementById('xseeSpaceLink').value || '').trim();
   localStorage.setItem('sw_xsee_link', val);
+  const host = parseXseeHostUsername(val);
+  if (host) localStorage.setItem('sw_xsee_host', host);
+  const gameEl = document.getElementById('xseeSpaceUrl');
+  if (gameEl && gameEl.value !== val) gameEl.value = val;
+  updateXseeSendChatButton();
+  syncXseeAutoFetchTimer();
 }
 function loadXseeSpaceLink() {
+  const val = localStorage.getItem('sw_xsee_link') || '';
   const el = document.getElementById('xseeSpaceLink');
-  if (el) el.value = localStorage.getItem('sw_xsee_link') || '';
+  const gameEl = document.getElementById('xseeSpaceUrl');
+  if (el) el.value = val;
+  if (gameEl) gameEl.value = val;
+  updateXseeSendChatButton();
 }
 
 // ==========================================
