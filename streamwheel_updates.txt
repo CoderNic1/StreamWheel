@@ -4,9 +4,26 @@
 // * dot 
 // ++ new line ++
 
+
+# 💻 V1.4 - API integration!
+
+**Xsee Api integration is live**
+* Auto collect viewers to your stream
+* push winner message to chat (automatically or manually)
+* push eliminations (automatically only when enabled)
+* custom winner message 
+* using vercel to host and have secure data api calls
+
+** UI changes**
+* Small UI changes with integrated API
+
+** premium **
+* locked features behind premium, subscribe to fully use them (currently after subscribe open ticket on discord)
+
 ++ new line ++
 
-# 🛜 V1.3 - **Login system and database connection!**
+# 🛜 V1.3 - Login system and database connection!
+date: 10/05/2026
 
 ** login system **
 * Create an account using your xsee username and a password, in future connection with Xsee would be needed
@@ -30,7 +47,7 @@
 
 ++ new line ++
 
-# ⭐ V1.2 - **QOL update**
+# ⭐ V1.2 - **QOL update
 date: 01/05/2026
 
 ** Quality of life update focussed on a few small new features and changes**

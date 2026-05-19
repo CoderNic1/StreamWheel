@@ -2290,8 +2290,11 @@ body {
           </div>
           <div class="form-group">
             <label class="form-label">📝 Winner chat template</label>
-            <input class="form-input" id="xseeAnnounceTemplate" placeholder="🎉 {winner} won &quot;{prize}&quot; on StreamWheel!" oninput="saveXseeIntegrationSettings()" />
-            <div style="font-size:0.68rem;font-weight:600;color:var(--text2);margin-top:3px">Placeholders: {winner} {prize} {remaining}</div>
+            <input class="form-input" id="xseeAnnounceTemplate" maxlength="150" placeholder="🎉 {winner} won &quot;{prize}&quot; on StreamWheel!" oninput="onXseeTemplateInput()" />
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px">
+              <div style="font-size:0.68rem;font-weight:600;color:var(--text2)">Placeholders: {winner} {prize} {remaining}</div>
+              <div id="templateCharCount" style="font-size:0.68rem;font-weight:800;color:var(--text2);flex-shrink:0;margin-left:8px">0 / 150</div>
+            </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
             <button type="button" class="btn btn-secondary btn-sm" onclick="testXseeConnection()">🔌 Test API</button>
@@ -2979,6 +2982,47 @@ const XSEE_DEFAULT_TEMPLATE = '🎉 {winner} won "{prize}" on StreamWheel! ({rem
 let _xseeAutoFetchTimer = null;
 let _lastXseeChatContext = null;
 
+// ── Client-side rate limiting (prevents button spam) ──
+const _apiCooldowns = {};
+function isOnCooldown(key, ms) {
+  const last = _apiCooldowns[key] || 0;
+  if (Date.now() - last < ms) return true;
+  _apiCooldowns[key] = Date.now();
+  return false;
+}
+
+// ── Debounce for settings saves (avoids firing syncXseeAutoFetchTimer on every keystroke) ──
+let _saveXseeSettingsDebounce = null;
+function saveXseeIntegrationSettingsDebounced() {
+  clearTimeout(_saveXseeSettingsDebounce);
+  _saveXseeSettingsDebounce = setTimeout(saveXseeIntegrationSettings, 400);
+}
+
+// ── Template input handler: enforces 150-char cap + live counter + debounced save ──
+const XSEE_TEMPLATE_MAX = 150;
+function onXseeTemplateInput() {
+  const tpl = document.getElementById('xseeAnnounceTemplate');
+  const counter = document.getElementById('templateCharCount');
+  if (!tpl) return;
+  // Hard-cap (maxlength attr covers most cases, this is a JS safety net)
+  if (tpl.value.length > XSEE_TEMPLATE_MAX) tpl.value = tpl.value.slice(0, XSEE_TEMPLATE_MAX);
+  const len = tpl.value.length;
+  if (counter) {
+    counter.textContent = len + ' / ' + XSEE_TEMPLATE_MAX;
+    counter.style.color = len >= XSEE_TEMPLATE_MAX - 10 ? 'var(--accent1)' : 'var(--text2)';
+  }
+  saveXseeIntegrationSettingsDebounced();
+}
+
+function syncTemplateCharCounter() {
+  const tpl = document.getElementById('xseeAnnounceTemplate');
+  const counter = document.getElementById('templateCharCount');
+  if (!tpl || !counter) return;
+  const len = Math.min(tpl.value.length, XSEE_TEMPLATE_MAX);
+  counter.textContent = len + ' / ' + XSEE_TEMPLATE_MAX;
+  counter.style.color = len >= XSEE_TEMPLATE_MAX - 10 ? 'var(--accent1)' : 'var(--text2)';
+}
+
 function parseXseeHostUsername(input) {
   const raw = (input || '').trim();
   if (!raw) return '';
@@ -3052,7 +3096,7 @@ function saveXseeIntegrationSettings() {
   if (af) localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
   if (aa) localStorage.setItem('sw_xsee_auto_announce', aa.checked ? '1' : '0');
   if (ae) localStorage.setItem('sw_xsee_announce_elim', ae.checked ? '1' : '0');
-  if (tpl) localStorage.setItem('sw_xsee_announce_tpl', tpl.value.trim() || XSEE_DEFAULT_TEMPLATE);
+  if (tpl) localStorage.setItem('sw_xsee_announce_tpl', (tpl.value.trim() || XSEE_DEFAULT_TEMPLATE).slice(0, XSEE_TEMPLATE_MAX));
   syncXseeAutoFetchTimer();
 }
 
@@ -3066,6 +3110,7 @@ function loadXseeIntegrationSettings() {
   if (aa) aa.checked = s.autoAnnounce;
   if (ae) ae.checked = s.announceElim;
   if (tpl) tpl.value = s.template;
+  syncTemplateCharCounter();
   updateXseeSendChatButton();
   syncXseeAutoFetchTimer();
 }
@@ -3122,6 +3167,11 @@ async function fetchSpaceParticipants(fromSettings) {
     if (!fromSettings) showTab('settings');
     return;
   }
+  // Rate-limit manual fetches to once every 8 seconds
+  if (!fromSettings && isOnCooldown('fetchParticipants', 8000)) {
+    showToast('⏳ Please wait a moment before fetching again');
+    return;
+  }
   const btn = document.getElementById('fetchSpaceBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
   setXseeStatus('Fetching participants…', false);
@@ -3152,6 +3202,10 @@ async function fetchSpaceParticipants(fromSettings) {
 }
 
 async function testXseeConnection() {
+  if (isOnCooldown('testXsee', 10000)) {
+    showToast('⏳ Please wait before testing again');
+    return;
+  }
   setXseeStatus('Testing API…', false);
   try {
     const me = await xseeApi('me');
@@ -3173,13 +3227,22 @@ async function testXseeConnection() {
   }
 }
 
+const XSEE_AD_SUFFIX = ' 🎡 streamwheel.app';
+
 function formatXseeChatMessage(ctx) {
   const s = getXseeIntegrationSettings();
-  return (s.template || XSEE_DEFAULT_TEMPLATE)
+  const isPremium = !!(window._swCurrentUser && window._swCurrentUser.isPremium);
+  let msg = (s.template || XSEE_DEFAULT_TEMPLATE)
     .replace(/\{winner\}/g, ctx.winner || '')
     .replace(/\{prize\}/g, ctx.prize || '')
-    .replace(/\{remaining\}/g, String(ctx.remaining ?? ''))
-    .slice(0, 500);
+    .replace(/\{remaining\}/g, String(ctx.remaining ?? ''));
+  // Non-premium: append branding ad (total capped at Xsee's 500-char limit)
+  if (!isPremium) {
+    msg = (msg + XSEE_AD_SUFFIX).slice(0, 500);
+  } else {
+    msg = msg.slice(0, 500);
+  }
+  return msg;
 }
 
 async function postXseeChatMessage(message) {
@@ -3211,16 +3274,30 @@ async function maybeAnnounceToXsee(ctx) {
 function updateXseeSendChatButton() {
   const btn = document.getElementById('xseeSendChatBtn');
   if (!btn) return;
-  btn.style.display = getXseeHostUsername() ? 'inline-flex' : 'none';
+  const hasHost = !!getXseeHostUsername();
+  btn.style.display = hasHost ? 'inline-flex' : 'none';
+  // Reset button state whenever a new result context arrives
+  if (hasHost) {
+    btn.disabled = false;
+    btn.textContent = '📡 Send to Xsee';
+  }
 }
 
 async function sendWinnerToXseeChat() {
   const ctx = _lastXseeChatContext;
   if (!ctx) { showToast('⚠️ Nothing to send'); return; }
+  // One-send lock — prevent double-posting from button spam
+  if (ctx._sent) { showToast('✅ Already sent to Xsee!'); return; }
+  const btn = document.getElementById('xseeSendChatBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending…'; }
   try {
     await postXseeChatMessage(formatXseeChatMessage(ctx));
+    ctx._sent = true;
     showToast('📡 Sent to Xsee chat!');
+    if (btn) { btn.textContent = '✅ Sent'; } // stays disabled
   } catch (e) {
+    // Re-enable on error so streamer can retry
+    if (btn) { btn.disabled = false; btn.textContent = '📡 Send to Xsee'; }
     if (e.details && e.details.installUrl) showToast('⚠️ App must be installed on channel');
     else showToast('❌ ' + (e.message || 'Send failed'));
   }
@@ -3228,11 +3305,15 @@ async function sendWinnerToXseeChat() {
 
 function syncXseeAutoFetchTimer() {
   if (_xseeAutoFetchTimer) { clearInterval(_xseeAutoFetchTimer); _xseeAutoFetchTimer = null; }
+  // Never start polling before the user is logged in
+  if (!window._swCurrentUser) return;
   const s = getXseeIntegrationSettings();
   if (!s.autoFetch || !getXseeHostUsername()) return;
   _xseeAutoFetchTimer = setInterval(() => {
     if (state.gameStarted && state.gameOver) return;
     if (state.gameStarted && !state.countdownTimer && document.getElementById('entriesBox')?.readOnly) return;
+    // Also skip if on the game tab isn't active — no point polling in background
+    if (!document.getElementById('page-game')?.classList.contains('active')) return;
     fetchSpaceParticipants(true);
   }, 60000);
 }
@@ -3728,13 +3809,14 @@ function showResultOverlay(emoji, title, nameOrNames, prize, isFinal, chatCtx) {
   clearElimOverlayAutospin();
   const names = Array.isArray(nameOrNames) ? nameOrNames : [nameOrNames];
   if (chatCtx) {
-    _lastXseeChatContext = chatCtx;
+    _lastXseeChatContext = { ...chatCtx, _sent: false };
   } else {
     _lastXseeChatContext = {
       winner: names.join(', '),
       prize: prize || state.prize || '',
       remaining: state.remaining.length,
       kind: title.toLowerCase().includes('elim') ? 'elim' : 'win',
+      _sent: false,
     };
   }
   updateXseeSendChatButton();
@@ -5255,12 +5337,18 @@ function escHtml(s) {
     swApplyStreamMode();
     // Apply premium gates
     if (typeof swApplyPremiumGates === 'function') swApplyPremiumGates();
+    // Re-evaluate auto-fetch timer now that auth state is known
+    if (typeof syncXseeAutoFetchTimer === 'function') syncXseeAutoFetchTimer();
   };
 
   // ── Load leaderboard from Firestore → localStorage, with timestamp safety ──
+  var _lbCloudLoadedThisSession = false;
   window._swLoadLeaderboardFromCloud = async function(cloudLastLoginMs) {
     var user = window._swCurrentUser;
     if (!user || !user.isPremium) return;
+    // Only load once per session — avoids re-fetching on Firebase token refreshes
+    if (_lbCloudLoadedThisSession) return;
+    _lbCloudLoadedThisSession = true;
     var fb = _fb();
     if (!fb) return;
     try {
