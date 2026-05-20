@@ -2059,11 +2059,11 @@ body {
     <div class="divider"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <div style="font-size:0.8rem;font-weight:700;color:var(--text2)">🔢 Points per win:</div>
-      <input class="form-input" id="lbPointsPerWin" type="number" min="0" value="10" style="width:80px">
+      <input class="form-input" id="lbPointsPerWin" type="number" min="0" value="1" style="width:80px">
       <div style="font-size:0.8rem;font-weight:700;color:var(--text2);margin-left:8px">🥈 Points per top-3:</div>
-      <input class="form-input" id="lbPointsTop3" type="number" min="0" value="25" style="width:80px">
+      <input class="form-input" id="lbPointsTop3" type="number" min="0" value="1" style="width:80px">
       <div style="font-size:0.8rem;font-weight:700;color:var(--text2);margin-left:8px">🥇 Points for #1:</div>
-      <input class="form-input" id="lbPointsFirst" type="number" min="0" value="50" style="width:80px">
+      <input class="form-input" id="lbPointsFirst" type="number" min="0" value="1" style="width:80px">
       <button class="btn btn-primary btn-sm" onclick="saveLbConfig()">💾 Save Config</button>
     </div>
     </div>
@@ -2277,21 +2277,17 @@ body {
             <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Channel must be <strong>live</strong> on Xsee when you fetch or post chat.</div>
           </div>
 
-          <!-- Auto-fetch — free -->
-          <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
-            <label class="lb-toggle-wrap" style="justify-content:flex-start">
-              <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
-              <span>📡 Auto-fetch participants every 60s</span>
-            </label>
-          </div>
-
-          <!-- Auto-announce — Premium only -->
+          <!-- All Xsee automation features — Premium only -->
           <div id="xseeAutoAnnouncePremiumNotice" class="sw-premium-notice" style="display:none">
             <i class="sw-premium-notice-icon" title="Requires Premium">⭐</i>
-            <span>Auto-announce to chat is a <strong>Premium</strong> feature. Subscribe to the <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou channel on Xsee</a> to unlock it.</span>
+            <span>Auto-fetch &amp; auto-announce are <strong>Premium</strong> features. Open a support ticket on our Discord to get it activated.</span>
           </div>
           <div id="xseeAutoAnnounceContent">
             <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+              <label class="lb-toggle-wrap" style="justify-content:flex-start">
+                <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
+                <span>📡 Auto-fetch participants every 60s <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
+              </label>
               <label class="lb-toggle-wrap" style="justify-content:flex-start">
                 <input type="checkbox" id="xseeAutoAnnounce" onchange="saveXseeIntegrationSettings()" />
                 <span>💬 Auto-post winner messages to Xsee chat <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
@@ -2525,6 +2521,7 @@ body {
   <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:12px;flex-shrink:0">
     <button id="logtab-games" onclick="switchLogTab('games')" style="padding:8px 20px;font-weight:800;font-size:0.85rem;border:none;background:none;cursor:pointer;color:var(--accent1);border-bottom:3px solid var(--accent1);margin-bottom:-2px">📋 Game Log</button>
     <button id="logtab-cycles" onclick="switchLogTab('cycles')" style="padding:8px 20px;font-weight:800;font-size:0.85rem;border:none;background:none;cursor:pointer;color:var(--text2);border-bottom:3px solid transparent;margin-bottom:-2px">🔁 Cycle Log</button>
+    <button id="logtab-errors" onclick="switchLogTab('errors')" style="padding:8px 20px;font-weight:800;font-size:0.85rem;border:none;background:none;cursor:pointer;color:var(--text2);border-bottom:3px solid transparent;margin-bottom:-2px">🐛 Error Log</button>
   </div>
 
   <!-- Game log sub-page -->
@@ -2550,6 +2547,20 @@ body {
     </div>
     <div id="cycleLogContainer">
       <div class="log-empty">🔁 No cycles yet. Start an Auto-Loop Cycle in Settings to see history here.</div>
+    </div>
+  </div>
+
+  <!-- Error log sub-page -->
+  <div id="logSubErrors" style="display:none">
+    <div class="log-filters">
+      <div style="font-family:var(--font-display);font-size:1.1rem;color:var(--text)">🐛 Error Log</div>
+      <div style="flex:1"></div>
+      <div style="font-size:0.72rem;font-weight:600;color:var(--text2);align-self:center">Auto-deleted after 3 days</div>
+      <button class="btn btn-secondary btn-sm" onclick="exportErrorLogCSV()">📤 CSV</button>
+      <button class="btn btn-danger btn-sm" onclick="clearErrorLog()">🗑️ Clear</button>
+    </div>
+    <div id="errorLogContainer">
+      <div class="log-empty">✅ No errors logged. Enjoy the smooth ride!</div>
     </div>
   </div>
   </div>
@@ -2591,9 +2602,9 @@ let wheelLogoImg = null; // custom logo for wheel center circle
 let gameLog     = JSON.parse(localStorage.getItem('sw_log') || '[]');
 let leaderboard = JSON.parse(localStorage.getItem('sw_lb') || '[]');
 const LB_CONFIG_DEFAULTS = {
-  pointsPerWin: 10,
-  pointsTop3: 25,
-  pointsFirst: 50,
+  pointsPerWin: 1,
+  pointsTop3: 1,
+  pointsFirst: 1,
   prizes: [
     { from: 1, to: 1, prize: '🥇 Champion Prize' },
     { from: 2, to: 3, prize: '🥈 Runner-up Prize' },
@@ -2684,20 +2695,29 @@ function showTab(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelector('.header')?.classList.remove('header-hidden');
-  if (name === 'log') { renderLog(); renderCycleLog(); }
+  if (name === 'log') { pruneErrorLog(); renderLog(); renderCycleLog(); }
   if (name === 'leaderboard') renderLeaderboard();
 }
 
 function switchLogTab(tab) {
-  const isGames = tab === 'games';
-  document.getElementById('logSubGames').style.display = isGames ? '' : 'none';
-  document.getElementById('logSubCycles').style.display = isGames ? 'none' : '';
+  const isGames  = tab === 'games';
+  const isCycles = tab === 'cycles';
+  const isErrors = tab === 'errors';
+  document.getElementById('logSubGames').style.display  = isGames  ? '' : 'none';
+  document.getElementById('logSubCycles').style.display = isCycles ? '' : 'none';
+  document.getElementById('logSubErrors').style.display = isErrors ? '' : 'none';
   const gBtn = document.getElementById('logtab-games');
   const cBtn = document.getElementById('logtab-cycles');
-  gBtn.style.color = isGames ? 'var(--accent1)' : 'var(--text2)';
-  gBtn.style.borderBottomColor = isGames ? 'var(--accent1)' : 'transparent';
-  cBtn.style.color = isGames ? 'var(--text2)' : 'var(--accent6)';
-  cBtn.style.borderBottomColor = isGames ? 'transparent' : 'var(--accent6)';
+  const eBtn = document.getElementById('logtab-errors');
+  gBtn.style.color             = isGames  ? 'var(--accent1)' : 'var(--text2)';
+  gBtn.style.borderBottomColor = isGames  ? 'var(--accent1)' : 'transparent';
+  cBtn.style.color             = isCycles ? 'var(--accent6)' : 'var(--text2)';
+  cBtn.style.borderBottomColor = isCycles ? 'var(--accent6)' : 'transparent';
+  if (eBtn) {
+    eBtn.style.color             = isErrors ? 'var(--accent1)' : 'var(--text2)';
+    eBtn.style.borderBottomColor = isErrors ? 'var(--accent1)' : 'transparent';
+    if (isErrors) renderErrorLog();
+  }
 }
 
 
@@ -3120,8 +3140,14 @@ function saveXseeIntegrationSettings() {
   const tpl  = document.getElementById('xseeAnnounceTemplate');
   const etpl = document.getElementById('xseeElimTemplate');
 
-  // Auto-fetch is free; auto-announce features are premium only
-  if (af) localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  // All three automation features are premium only
+  if (af) {
+    if (!isPremium && af.checked) {
+      af.checked = false;
+      showToast('⭐ Auto-fetch is a Premium feature');
+    }
+    localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  }
 
   if (aa) {
     if (!isPremium && aa.checked) {
@@ -3244,6 +3270,7 @@ async function fetchSpaceParticipants(fromSettings) {
     else if (e.status === 403) showToast('⚠️ ' + (e.message || 'Forbidden') + (e.details?.installUrl ? ' — install StreamWheel on channel' : ''));
     else showToast('❌ ' + (e.message || 'Fetch failed') + hint);
     console.error('[Xsee fetch]', e.status, e.code, e.message, e.details);
+    logError('Xsee fetch participants', e);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📡 Fetch'; }
   }
@@ -3269,6 +3296,7 @@ async function testXseeConnection() {
     setXseeStatus('❌ ' + (e.message || 'Test failed') + hint, true);
     showToast('❌ ' + (e.message || 'API test failed') + hint);
     console.error('[Xsee test]', e.status, e.code, e.message);
+    logError('Xsee API test', e);
   }
 }
 
@@ -3316,6 +3344,7 @@ async function maybeAnnounceToXsee(ctx) {
     } else {
       showToast('❌ Chat: ' + (e.message || 'failed'));
     }
+    logError('Xsee auto-announce', e);
   }
 }
 
@@ -3362,13 +3391,15 @@ async function sendWinnerToXseeChat() {
     if (btn) { btn.disabled = false; btn.textContent = '📡 Send to Xsee'; }
     if (e.details && e.details.installUrl) showToast('⚠️ App must be installed on channel');
     else showToast('❌ ' + (e.message || 'Send failed'));
+    logError('Xsee manual send to chat', e);
   }
 }
 
 function syncXseeAutoFetchTimer() {
   if (_xseeAutoFetchTimer) { clearInterval(_xseeAutoFetchTimer); _xseeAutoFetchTimer = null; }
-  // Never poll before the user is logged in
+  // Never poll before login or without premium
   if (!window._swCurrentUser) return;
+  if (!(window._swCurrentUser && window._swCurrentUser.isPremium)) return;
   const s = getXseeIntegrationSettings();
   if (!s.autoFetch || !getXseeHostUsername()) return;
   _xseeAutoFetchTimer = setInterval(() => {
@@ -4223,14 +4254,105 @@ function exportLogCSV() {
 }
 
 // ==========================================
-//  CLEAR DATA
+//  ERROR LOG
 // ==========================================
+const ERROR_LOG_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+let errorLog = [];
+
+(function _loadErrorLog() {
+  try {
+    const raw = localStorage.getItem('sw_error_log');
+    errorLog = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(errorLog)) errorLog = [];
+  } catch(e) {
+    errorLog = [];
+  }
+  pruneErrorLog();
+})();
+
+function pruneErrorLog() {
+  const cutoff = Date.now() - ERROR_LOG_TTL_MS;
+  const before = errorLog.length;
+  errorLog = errorLog.filter(e => e.ts && e.ts > cutoff);
+  if (errorLog.length !== before) _saveErrorLog();
+}
+
+function _saveErrorLog() {
+  try { localStorage.setItem('sw_error_log', JSON.stringify(errorLog)); } catch(e) { /* storage full */ }
+}
+
+function logError(action, error) {
+  const now = new Date();
+  const entry = {
+    ts:      now.getTime(),
+    date:    now.toLocaleDateString(),
+    time:    now.toLocaleTimeString(),
+    action:  action || 'unknown',
+    message: (error && (error.message || String(error))) || 'Unknown error',
+    stack:   (error && error.stack) ? error.stack.split('\n').slice(0,4).join(' | ') : '',
+  };
+  errorLog.unshift(entry);
+  if (errorLog.length > 200) errorLog.length = 200; // cap at 200 entries
+  _saveErrorLog();
+  // Highlight error tab button if it exists
+  const eBtn = document.getElementById('logtab-errors');
+  if (eBtn && !eBtn.dataset.hasErrors) {
+    eBtn.dataset.hasErrors = '1';
+    eBtn.textContent = '🐛 Error Log ⚠️';
+  }
+}
+
+function renderErrorLog() {
+  const container = document.getElementById('errorLogContainer');
+  if (!container) return;
+  pruneErrorLog();
+  if (!errorLog.length) {
+    container.innerHTML = '<div class="log-empty">✅ No errors logged. Enjoy the smooth ride!</div>';
+    return;
+  }
+  container.innerHTML = errorLog.map(e => `
+    <div class="log-entry" style="border-left:3px solid var(--accent1)">
+      <div class="log-entry-header">
+        <div>
+          <span class="mode-tag" style="background:var(--accent1);color:#fff">⚠️ ${escHtml(e.action)}</span>
+        </div>
+        <div class="log-meta"><span>📅 ${escHtml(e.date)} ${escHtml(e.time)}</span></div>
+      </div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--accent1);margin:4px 0 2px">${escHtml(e.message)}</div>
+      ${e.stack ? `<div style="font-size:0.68rem;color:var(--text2);font-family:monospace;white-space:pre-wrap;word-break:break-all;opacity:0.75;margin-top:2px">${escHtml(e.stack)}</div>` : ''}
+    </div>`).join('');
+}
+
+function clearErrorLog() {
+  if (!confirm('Clear all error history?')) return;
+  errorLog = [];
+  _saveErrorLog();
+  const eBtn = document.getElementById('logtab-errors');
+  if (eBtn) { eBtn.textContent = '🐛 Error Log'; delete eBtn.dataset.hasErrors; }
+  renderErrorLog();
+  showToast('🗑️ Error log cleared!');
+}
+
+function exportErrorLogCSV() {
+  if (!errorLog.length) { showToast('⚠️ No errors to export!'); return; }
+  const rows = [['Date','Time','Action','Error','Stack']];
+  errorLog.forEach(e => rows.push([e.date, e.time, e.action, e.message, e.stack || '']));
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'StreamWheel_ErrorLog.csv'; a.click();
+  showToast('📤 Error log exported!');
+}
+
+
 function clearAllData() {
   if (!confirm('⚠️ Delete ALL data (log, leaderboard, settings, theme)? Cannot be undone.')) return;
   if (!confirm('🚨 Last chance — confirm full reset?')) return;
-  ['sw_log','sw_lb','sw_lbconfig','sw_ad','sw_theme','sw_wheel','sw_music_vol','sw_elim_autospin_sec','sw_ui_show_winners','sw_ui_show_eliminated','sw_ui_show_lb_preview','sw_wheel_logo','sw_chat_cmd','sw_xsee_link','sw_xsee_host','sw_xsee_auto_fetch','sw_xsee_auto_announce','sw_xsee_announce_elim','sw_xsee_announce_tpl','sw_xsee_elim_tpl','sw_lb_last_push_at','sw_cycle_log','sw_confetti_enabled','sw_confetti_intensity','sw_first_setup_done','sw_center_size'].forEach(k => localStorage.removeItem(k));
+  ['sw_log','sw_lb','sw_lbconfig','sw_ad','sw_theme','sw_wheel','sw_music_vol','sw_elim_autospin_sec','sw_ui_show_winners','sw_ui_show_eliminated','sw_ui_show_lb_preview','sw_wheel_logo','sw_chat_cmd','sw_xsee_link','sw_xsee_host','sw_xsee_auto_fetch','sw_xsee_auto_announce','sw_xsee_announce_elim','sw_xsee_announce_tpl','sw_xsee_elim_tpl','sw_lb_last_push_at','sw_cycle_log','sw_error_log','sw_confetti_enabled','sw_confetti_intensity','sw_first_setup_done','sw_center_size'].forEach(k => localStorage.removeItem(k));
   sessionStorage.removeItem(SESSION_KEY);
-  gameLog=[]; leaderboard=[]; cycleLog=[];
+  gameLog=[]; leaderboard=[]; cycleLog=[]; errorLog=[];
+  const eBtn = document.getElementById('logtab-errors');
+  if (eBtn) { eBtn.textContent = '🐛 Error Log'; delete eBtn.dataset.hasErrors; }
   lbConfig = { ...LB_CONFIG_DEFAULTS, prizes: LB_CONFIG_DEFAULTS.prizes.map(p => ({ ...p })) };
   adSettings={enabled:false,text:'',imageUrl:'',maxLen:150};
   currentTheme='colorful'; applyTheme('colorful');
@@ -5257,6 +5379,10 @@ function escHtml(s) {
         ? '\u274C Too many attempts — please wait a moment'
         : '\u274C Sign-in failed (' + code + ')';
       showToast(msg);
+      // Only log unexpected errors (not wrong password — that's normal user input)
+      if (code !== 'auth/invalid-credential' && code !== 'auth/wrong-password' && code !== 'auth/user-not-found') {
+        logError('Login (' + code + ')', err);
+      }
     }
   };
 
@@ -5295,6 +5421,9 @@ function escHtml(s) {
         ? '\u274C Password is too weak — add more characters'
         : '\u274C Registration failed (' + code + ')';
       showToast(msg);
+      if (code !== 'auth/email-already-in-use' && code !== 'auth/weak-password') {
+        logError('Register (' + code + ')', err);
+      }
     }
   };
 
@@ -5422,7 +5551,7 @@ function escHtml(s) {
       var cloudSyncMs = data.lastSynced ? data.lastSynced.toMillis() : 0;
       var localSyncStr = localStorage.getItem('sw_lb_last_sync');
       var localSyncMs = localSyncStr ? new Date(localSyncStr).getTime() : 0;
-      var localLb = JSON.parse(localStorage.getItem('sw_lb') || '[]');
+      var localLb = (function() { try { return JSON.parse(localStorage.getItem('sw_lb') || '[]'); } catch(e) { return []; } })();
       var localHasData = localLb.length > 0;
 
       if (localHasData && localSyncMs > cloudSyncMs) {
@@ -5458,7 +5587,7 @@ function escHtml(s) {
       showToast('\u2601\uFE0F Cloud leaderboard loaded!');
     } catch (e) {
       // Firebase quota or network error — fall back to localStorage silently
-      var localLbFallback = JSON.parse(localStorage.getItem('sw_lb') || '[]');
+      var localLbFallback = (function() { try { return JSON.parse(localStorage.getItem('sw_lb') || '[]'); } catch(e) { return []; } })();
       if (localLbFallback.length > 0) {
         window._swShowOfflineBanner(
           'Cloud database is temporarily unreachable. Your local leaderboard ('
@@ -5468,6 +5597,7 @@ function escHtml(s) {
         window._swShowOfflineBanner();
       }
       console.warn('[StreamWheel] Cloud LB fetch failed:', e.code || e.message);
+      logError('Cloud LB load', e);
     }
   };
 
@@ -5520,6 +5650,7 @@ function escHtml(s) {
         window._swShowOfflineBanner('Sync failed. Your leaderboard is saved locally and will sync next time the cloud is reachable.');
       }
       console.error('[StreamWheel] LB sync error:', e);
+      logError('Cloud LB sync', e);
     } finally {
       if (!silent && btn) { btn.disabled = false; btn.textContent = '\u2601\uFE0F Sync to Cloud'; }
     }
@@ -5573,18 +5704,20 @@ function escHtml(s) {
     if (adNotice)  adNotice.style.display  = isPremium ? 'none' : 'flex';
     if (adContent) adContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Integrations — auto-announce toggles (auto-fetch is free)
+    // Integrations — all automation toggles are premium (auto-fetch, auto-announce, elim)
     var announceNotice  = document.getElementById('xseeAutoAnnouncePremiumNotice');
     var announceContent = document.getElementById('xseeAutoAnnounceContent');
     if (announceNotice)  announceNotice.style.display  = isPremium ? 'none' : 'flex';
     if (announceContent) announceContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Force-uncheck auto-announce checkboxes if not premium
+    // Force-uncheck all automation checkboxes if not premium
     if (!isPremium) {
+      var af = document.getElementById('xseeAutoFetch');
       var aa = document.getElementById('xseeAutoAnnounce');
       var ae = document.getElementById('xseeAnnounceElim');
-      if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce', '0'); }
-      if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim', '0'); }
+      if (af && af.checked) { af.checked = false; localStorage.setItem('sw_xsee_auto_fetch',     '0'); }
+      if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce',  '0'); }
+      if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim',  '0'); }
     }
   };
 
