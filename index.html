@@ -1444,7 +1444,6 @@ body {
   // ── Auth state observer ──
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      sessionStorage.removeItem('sw_guest_mode'); // clear guest mode on real login
       try {
         const snap = await getDoc(doc(db, 'hosts', user.uid));
         const data = snap.exists() ? snap.data() : {};
@@ -1593,17 +1592,6 @@ body {
 
       <div class="login-footer-text" style="margin-top:12px;font-size:0.74rem">
         By creating an account you agree that no sensitive personal data is stored — only your username and password.
-      </div>
-    </div>
-
-    <!-- GUEST OPTION -->
-    <div style="margin-top:16px;padding-top:14px;border-top:1.5px dashed var(--border);text-align:center">
-      <div style="font-size:0.78rem;font-weight:700;color:var(--text2);margin-bottom:10px">Just want to try the wheel first?</div>
-      <button type="button" class="btn btn-secondary" style="width:100%;font-size:0.9rem;padding:10px" onclick="swlContinueAsGuest()">
-        👀 Continue as Guest
-      </button>
-      <div style="font-size:0.7rem;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.5;opacity:0.85">
-        Spin the wheel — no account needed.<br>Log, leaderboard, auto-spin &amp; settings require a free account.
       </div>
     </div>
 
@@ -1788,13 +1776,6 @@ body {
 
 <!-- MAIN WRAP -->
 <div class="main-wrap">
-
-<!-- GUEST MODE BANNER -->
-<div id="guestModeBanner" style="display:none;background:linear-gradient(90deg,rgba(77,150,255,0.13),rgba(255,107,107,0.10));border:1.5px solid var(--accent4);border-radius:var(--radius-sm);margin:8px 12px 0;padding:8px 14px;align-items:center;flex-wrap:wrap;gap:8px;flex-shrink:0">
-  <span style="font-size:0.82rem;font-weight:800;color:var(--accent4)">👀 Guest Mode</span>
-  <span style="font-size:0.78rem;font-weight:600;color:var(--text2);flex:1;min-width:160px">Log, leaderboard, auto-spin &amp; settings are locked. Create a free account to unlock them.</span>
-  <button type="button" onclick="swlSignOutGuest()" style="background:var(--accent4);color:#fff;border:none;border-radius:20px;padding:4px 14px;font-size:0.75rem;font-weight:800;cursor:pointer;white-space:nowrap">Create Free Account →</button>
-</div>
 
 <!-- ===== GAME PAGE ===== -->
 <section class="page active" id="page-game">
@@ -2296,28 +2277,24 @@ body {
             <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Channel must be <strong>live</strong> on Xsee when you fetch or post chat.</div>
           </div>
 
-          <!-- Auto-fetch — free -->
-          <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
-            <label class="lb-toggle-wrap" style="justify-content:flex-start">
-              <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
-              <span>📡 Auto-fetch participants every 60s</span>
-            </label>
-          </div>
-
-          <!-- Auto-announce — Premium only -->
+          <!-- All Xsee automation features — Premium only -->
           <div id="xseeAutoAnnouncePremiumNotice" class="sw-premium-notice" style="display:none">
             <i class="sw-premium-notice-icon" title="Requires Premium">⭐</i>
-            <span>Auto-announce to chat is a <strong>Premium</strong> feature. Subscribe to the <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou channel on Xsee</a> to unlock it.</span>
+            <span>Auto-fetch &amp; auto-announce are <strong>Premium</strong> features. Open a support ticket on our Discord to get it activated.</span>
           </div>
           <div id="xseeAutoAnnounceContent">
             <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+              <label class="lb-toggle-wrap" style="justify-content:flex-start">
+                <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
+                <span>📡 Auto-fetch participants every 60s <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
+              </label>
               <label class="lb-toggle-wrap" style="justify-content:flex-start">
                 <input type="checkbox" id="xseeAutoAnnounce" onchange="saveXseeIntegrationSettings()" />
                 <span>💬 Auto-post winner messages to Xsee chat <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
               </label>
               <label class="lb-toggle-wrap" style="justify-content:flex-start">
                 <input type="checkbox" id="xseeAnnounceElim" onchange="saveXseeIntegrationSettings()" />
-                <span>💥 Also announce eliminations <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
+                <span>💥 Auto announce eliminations to Xsee chat <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
               </label>
             </div>
 
@@ -2524,7 +2501,7 @@ body {
           <!-- Delete account — only shown when signed in -->
           <div id="deleteAccountSection" style="display:none;border-top:1px dashed rgba(255,45,45,0.3);padding-top:10px;margin-top:4px">
             <div style="font-size:0.75rem;font-weight:700;color:var(--text2);margin-bottom:8px;line-height:1.5">
-              🔥 <strong>Account deletion</strong> removes your cloud profile + leaderboard from Firebase and signs you out.
+              🔥 <strong>Account deletion</strong> removes your cloud profile + leaderboard from the database and signs you out.
               Local browser data (log, settings) is <em>not</em> removed — use Clear ALL Data above for that.
             </div>
             <button class="btn btn-danger btn-sm" onclick="swlOpenModal('deleteAccountModal')">🗑️ Delete My Account &amp; Cloud Data</button>
@@ -2718,7 +2695,7 @@ function showTab(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelector('.header')?.classList.remove('header-hidden');
-  if (name === 'log') { if (typeof pruneErrorLog === 'function') pruneErrorLog(); renderLog(); renderCycleLog(); }
+  if (name === 'log') { pruneErrorLog(); renderLog(); renderCycleLog(); }
   if (name === 'leaderboard') renderLeaderboard();
 }
 
@@ -2728,8 +2705,7 @@ function switchLogTab(tab) {
   const isErrors = tab === 'errors';
   document.getElementById('logSubGames').style.display  = isGames  ? '' : 'none';
   document.getElementById('logSubCycles').style.display = isCycles ? '' : 'none';
-  const errSub = document.getElementById('logSubErrors');
-  if (errSub) errSub.style.display = isErrors ? '' : 'none';
+  document.getElementById('logSubErrors').style.display = isErrors ? '' : 'none';
   const gBtn = document.getElementById('logtab-games');
   const cBtn = document.getElementById('logtab-cycles');
   const eBtn = document.getElementById('logtab-errors');
@@ -2740,7 +2716,7 @@ function switchLogTab(tab) {
   if (eBtn) {
     eBtn.style.color             = isErrors ? 'var(--accent1)' : 'var(--text2)';
     eBtn.style.borderBottomColor = isErrors ? 'var(--accent1)' : 'transparent';
-    if (isErrors) { renderErrorLog(); delete eBtn.dataset.hasErrors; eBtn.textContent = '🐛 Error Log'; }
+    if (isErrors) renderErrorLog();
   }
 }
 
@@ -3164,8 +3140,14 @@ function saveXseeIntegrationSettings() {
   const tpl  = document.getElementById('xseeAnnounceTemplate');
   const etpl = document.getElementById('xseeElimTemplate');
 
-  // Auto-fetch is free; auto-announce features are premium only
-  if (af) localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  // All three automation features are premium only
+  if (af) {
+    if (!isPremium && af.checked) {
+      af.checked = false;
+      showToast('⭐ Auto-fetch is a Premium feature');
+    }
+    localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  }
 
   if (aa) {
     if (!isPremium && aa.checked) {
@@ -3362,6 +3344,7 @@ async function maybeAnnounceToXsee(ctx) {
     } else {
       showToast('❌ Chat: ' + (e.message || 'failed'));
     }
+    logError('Xsee auto-announce', e);
   }
 }
 
@@ -3408,13 +3391,15 @@ async function sendWinnerToXseeChat() {
     if (btn) { btn.disabled = false; btn.textContent = '📡 Send to Xsee'; }
     if (e.details && e.details.installUrl) showToast('⚠️ App must be installed on channel');
     else showToast('❌ ' + (e.message || 'Send failed'));
+    logError('Xsee manual send to chat', e);
   }
 }
 
 function syncXseeAutoFetchTimer() {
   if (_xseeAutoFetchTimer) { clearInterval(_xseeAutoFetchTimer); _xseeAutoFetchTimer = null; }
-  // Never poll before the user is logged in
+  // Never poll before login or without premium
   if (!window._swCurrentUser) return;
+  if (!(window._swCurrentUser && window._swCurrentUser.isPremium)) return;
   const s = getXseeIntegrationSettings();
   if (!s.autoFetch || !getXseeHostUsername()) return;
   _xseeAutoFetchTimer = setInterval(() => {
@@ -4269,9 +4254,9 @@ function exportLogCSV() {
 }
 
 // ==========================================
-//  ERROR LOG (local, auto-deleted after 3 days, no stack traces)
+//  ERROR LOG
 // ==========================================
-const ERROR_LOG_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const ERROR_LOG_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 let errorLog = [];
 
 (function _loadErrorLog() {
@@ -4279,7 +4264,9 @@ let errorLog = [];
     const raw = localStorage.getItem('sw_error_log');
     errorLog = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(errorLog)) errorLog = [];
-  } catch(e) { errorLog = []; }
+  } catch(e) {
+    errorLog = [];
+  }
   pruneErrorLog();
 })();
 
@@ -4291,21 +4278,23 @@ function pruneErrorLog() {
 }
 
 function _saveErrorLog() {
-  try { localStorage.setItem('sw_error_log', JSON.stringify(errorLog)); } catch(e) {}
+  try { localStorage.setItem('sw_error_log', JSON.stringify(errorLog)); } catch(e) { /* storage full */ }
 }
 
 function logError(action, error) {
   const now = new Date();
-  errorLog.unshift({
+  const entry = {
     ts:      now.getTime(),
     date:    now.toLocaleDateString(),
     time:    now.toLocaleTimeString(),
     action:  action || 'unknown',
-    // No stack traces — they expose internal file paths and line numbers
-    message: (error && (error.code ? '[' + error.code + '] ' : '') + (error.message || String(error))) || 'Unknown error',
-  });
-  if (errorLog.length > 200) errorLog.length = 200;
+    message: (error && (error.message || String(error))) || 'Unknown error',
+    stack:   (error && error.stack) ? error.stack.split('\n').slice(0,4).join(' | ') : '',
+  };
+  errorLog.unshift(entry);
+  if (errorLog.length > 200) errorLog.length = 200; // cap at 200 entries
   _saveErrorLog();
+  // Highlight error tab button if it exists
   const eBtn = document.getElementById('logtab-errors');
   if (eBtn && !eBtn.dataset.hasErrors) {
     eBtn.dataset.hasErrors = '1';
@@ -4324,10 +4313,13 @@ function renderErrorLog() {
   container.innerHTML = errorLog.map(e => `
     <div class="log-entry" style="border-left:3px solid var(--accent1)">
       <div class="log-entry-header">
-        <span class="mode-tag" style="background:var(--accent1);color:#fff">⚠️ ${escHtml(e.action)}</span>
+        <div>
+          <span class="mode-tag" style="background:var(--accent1);color:#fff">⚠️ ${escHtml(e.action)}</span>
+        </div>
         <div class="log-meta"><span>📅 ${escHtml(e.date)} ${escHtml(e.time)}</span></div>
       </div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--accent1);margin-top:4px">${escHtml(e.message)}</div>
+      <div style="font-size:0.78rem;font-weight:700;color:var(--accent1);margin:4px 0 2px">${escHtml(e.message)}</div>
+      ${e.stack ? `<div style="font-size:0.68rem;color:var(--text2);font-family:monospace;white-space:pre-wrap;word-break:break-all;opacity:0.75;margin-top:2px">${escHtml(e.stack)}</div>` : ''}
     </div>`).join('');
 }
 
@@ -4343,8 +4335,8 @@ function clearErrorLog() {
 
 function exportErrorLogCSV() {
   if (!errorLog.length) { showToast('⚠️ No errors to export!'); return; }
-  const rows = [['Date','Time','Action','Error']];
-  errorLog.forEach(e => rows.push([e.date, e.time, e.action, e.message]));
+  const rows = [['Date','Time','Action','Error','Stack']];
+  errorLog.forEach(e => rows.push([e.date, e.time, e.action, e.message, e.stack || '']));
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -4352,79 +4344,7 @@ function exportErrorLogCSV() {
   showToast('📤 Error log exported!');
 }
 
-// ==========================================
-//  GUEST MODE
-// ==========================================
-const GUEST_LOCKED_TABS     = ['log', 'leaderboard', 'settings'];
-const GUEST_LOCKED_SECTIONS = ['lbToggleWrap', 'autoSpinPauseBtn'];
 
-function isGuestMode() {
-  return !window._swCurrentUser && sessionStorage.getItem('sw_guest_mode') === '1';
-}
-
-window.swlContinueAsGuest = function() {
-  sessionStorage.setItem('sw_guest_mode', '1');
-  var landing = document.getElementById('sw-landing-root');
-  if (landing) landing.classList.add('sw-landing-hidden');
-  _applyGuestGates();
-  showToast('👀 Guest mode — create a free account to unlock everything!');
-};
-
-window.swlSignOutGuest = function() {
-  sessionStorage.removeItem('sw_guest_mode');
-  var landing = document.getElementById('sw-landing-root');
-  if (landing) landing.classList.remove('sw-landing-hidden');
-  window.scrollTo(0, 0);
-  setTimeout(function() {
-    var sec = document.getElementById('loginSection');
-    if (sec) sec.scrollIntoView({ behavior: 'smooth' });
-  }, 80);
-};
-
-function _applyGuestGates() {
-  const isGuest = isGuestMode();
-  const banner  = document.getElementById('guestModeBanner');
-  if (banner) banner.style.display = isGuest ? 'flex' : 'none';
-
-  GUEST_LOCKED_TABS.forEach(function(name) {
-    const btn = document.getElementById('tab-' + name);
-    if (!btn) return;
-    btn.style.opacity       = isGuest ? '0.45' : '';
-    btn.style.pointerEvents = isGuest ? 'none' : '';
-    btn.title               = isGuest ? '🔒 Create a free account to access this' : '';
-  });
-
-  GUEST_LOCKED_SECTIONS.forEach(function(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.style.opacity       = isGuest ? '0.4' : '';
-    el.style.pointerEvents = isGuest ? 'none' : '';
-    el.title               = isGuest ? '🔒 Create a free account to use this' : '';
-  });
-
-  // LB toggle: uncheck and disable for guests, restore default for logged-in users
-  const lbEnabled = document.getElementById('lbEnabled');
-  if (lbEnabled) {
-    if (isGuest) {
-      lbEnabled.checked = false;
-    }
-    if (typeof updateLbToggleStyle === 'function') updateLbToggleStyle();
-  }
-}
-
-// Wrap showTab to intercept locked tabs for guests
-const _originalShowTab = showTab;
-function showTab(name) {
-  if (isGuestMode() && GUEST_LOCKED_TABS.indexOf(name) !== -1) {
-    showToast('🔒 Create a free account to access ' + name);
-    return;
-  }
-  _originalShowTab(name);
-}
-
-// ==========================================
-//  CLEAR DATA
-// ==========================================
 function clearAllData() {
   if (!confirm('⚠️ Delete ALL data (log, leaderboard, settings, theme)? Cannot be undone.')) return;
   if (!confirm('🚨 Last chance — confirm full reset?')) return;
@@ -5459,8 +5379,9 @@ function escHtml(s) {
         ? '\u274C Too many attempts — please wait a moment'
         : '\u274C Sign-in failed (' + code + ')';
       showToast(msg);
+      // Only log unexpected errors (not wrong password — that's normal user input)
       if (code !== 'auth/invalid-credential' && code !== 'auth/wrong-password' && code !== 'auth/user-not-found') {
-        if (typeof logError === 'function') logError('Login (' + code + ')', err);
+        logError('Login (' + code + ')', err);
       }
     }
   };
@@ -5501,7 +5422,7 @@ function escHtml(s) {
         : '\u274C Registration failed (' + code + ')';
       showToast(msg);
       if (code !== 'auth/email-already-in-use' && code !== 'auth/weak-password') {
-        if (typeof logError === 'function') logError('Register (' + code + ')', err);
+        logError('Register (' + code + ')', err);
       }
     }
   };
@@ -5605,8 +5526,9 @@ function escHtml(s) {
 
     // Apply stream mode on load
     swApplyStreamMode();
+    // Apply premium gates
     if (typeof swApplyPremiumGates === 'function') swApplyPremiumGates();
-    if (typeof _applyGuestGates    === 'function') _applyGuestGates();
+    // Re-evaluate auto-fetch timer and manual send button now that auth state is known
     if (typeof syncXseeAutoFetchTimer === 'function') syncXseeAutoFetchTimer();
     if (typeof updateXseeSendChatButton === 'function') updateXseeSendChatButton();
   };
@@ -5629,7 +5551,7 @@ function escHtml(s) {
       var cloudSyncMs = data.lastSynced ? data.lastSynced.toMillis() : 0;
       var localSyncStr = localStorage.getItem('sw_lb_last_sync');
       var localSyncMs = localSyncStr ? new Date(localSyncStr).getTime() : 0;
-      var localLb = JSON.parse(localStorage.getItem('sw_lb') || '[]');
+      var localLb = (function() { try { return JSON.parse(localStorage.getItem('sw_lb') || '[]'); } catch(e) { return []; } })();
       var localHasData = localLb.length > 0;
 
       if (localHasData && localSyncMs > cloudSyncMs) {
@@ -5665,7 +5587,7 @@ function escHtml(s) {
       showToast('\u2601\uFE0F Cloud leaderboard loaded!');
     } catch (e) {
       // Firebase quota or network error — fall back to localStorage silently
-      var localLbFallback = JSON.parse(localStorage.getItem('sw_lb') || '[]');
+      var localLbFallback = (function() { try { return JSON.parse(localStorage.getItem('sw_lb') || '[]'); } catch(e) { return []; } })();
       if (localLbFallback.length > 0) {
         window._swShowOfflineBanner(
           'Cloud database is temporarily unreachable. Your local leaderboard ('
@@ -5675,6 +5597,7 @@ function escHtml(s) {
         window._swShowOfflineBanner();
       }
       console.warn('[StreamWheel] Cloud LB fetch failed:', e.code || e.message);
+      logError('Cloud LB load', e);
     }
   };
 
@@ -5727,7 +5650,7 @@ function escHtml(s) {
         window._swShowOfflineBanner('Sync failed. Your leaderboard is saved locally and will sync next time the cloud is reachable.');
       }
       console.error('[StreamWheel] LB sync error:', e);
-      if (typeof logError === 'function') logError('Cloud LB sync', e);
+      logError('Cloud LB sync', e);
     } finally {
       if (!silent && btn) { btn.disabled = false; btn.textContent = '\u2601\uFE0F Sync to Cloud'; }
     }
@@ -5781,18 +5704,20 @@ function escHtml(s) {
     if (adNotice)  adNotice.style.display  = isPremium ? 'none' : 'flex';
     if (adContent) adContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Integrations — auto-announce toggles (auto-fetch is free)
+    // Integrations — all automation toggles are premium (auto-fetch, auto-announce, elim)
     var announceNotice  = document.getElementById('xseeAutoAnnouncePremiumNotice');
     var announceContent = document.getElementById('xseeAutoAnnounceContent');
     if (announceNotice)  announceNotice.style.display  = isPremium ? 'none' : 'flex';
     if (announceContent) announceContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Force-uncheck auto-announce checkboxes if not premium
+    // Force-uncheck all automation checkboxes if not premium
     if (!isPremium) {
+      var af = document.getElementById('xseeAutoFetch');
       var aa = document.getElementById('xseeAutoAnnounce');
       var ae = document.getElementById('xseeAnnounceElim');
-      if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce', '0'); }
-      if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim', '0'); }
+      if (af && af.checked) { af.checked = false; localStorage.setItem('sw_xsee_auto_fetch',     '0'); }
+      if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce',  '0'); }
+      if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim',  '0'); }
     }
   };
 
