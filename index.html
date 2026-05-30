@@ -1444,24 +1444,24 @@ body {
   // ── Auth state observer ──
   onAuthStateChanged(auth, async (user) => {
     if (user) {
+      sessionStorage.removeItem('sw_guest_mode'); // clear guest mode on real login
       try {
         const snap = await getDoc(doc(db, 'hosts', user.uid));
         const data = snap.exists() ? snap.data() : {};
         const isPremium = data.isPremium === true;
         const username = data.username || '';
-        // Store cloud lastLogin timestamp (ms) for comparison
         const cloudLastLogin = data.lastLogin ? data.lastLogin.toMillis() : 0;
         window._swCurrentUser = { uid: user.uid, username, isPremium, cloudLastLogin };
-        // Update lastLogin on server
         await setDoc(doc(db, 'hosts', user.uid), { lastLogin: serverTimestamp() }, { merge: true });
         if (isPremium) {
           await window._swLoadLeaderboardFromCloud(cloudLastLogin);
         }
       } catch (e) {
-        // Firebase unreachable — use localStorage fallback
         window._swCurrentUser = { uid: user.uid, username: localStorage.getItem('sw_username') || '', isPremium: false, cloudLastLogin: 0 };
         window._swShowOfflineBanner();
       }
+      // Always enter the app when Firebase confirms a real user (handles page reload / auto-login)
+      if (typeof swlEnterApp === 'function') swlEnterApp();
       window._swUpdateAuthUI();
     } else {
       window._swCurrentUser = null;
@@ -1592,6 +1592,17 @@ body {
 
       <div class="login-footer-text" style="margin-top:12px;font-size:0.74rem">
         By creating an account you agree that no sensitive personal data is stored — only your username and password.
+      </div>
+    </div>
+
+    <!-- GUEST OPTION -->
+    <div style="margin-top:16px;padding-top:14px;border-top:1.5px dashed var(--border);text-align:center">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--text2);margin-bottom:10px">Just want to try the wheel first?</div>
+      <button type="button" class="btn btn-secondary" style="width:100%;font-size:0.9rem;padding:10px" onclick="swlContinueAsGuest()">
+        👀 Continue as Guest
+      </button>
+      <div style="font-size:0.7rem;font-weight:600;color:var(--text2);margin-top:7px;line-height:1.5;opacity:0.85">
+        Spin the wheel — no account needed.<br>Log, leaderboard, auto-spin &amp; settings require a free account.
       </div>
     </div>
 
@@ -1776,6 +1787,13 @@ body {
 
 <!-- MAIN WRAP -->
 <div class="main-wrap">
+
+<!-- GUEST MODE BANNER -->
+<div id="guestModeBanner" style="display:none;background:linear-gradient(90deg,rgba(77,150,255,0.13),rgba(255,107,107,0.10));border:1.5px solid var(--accent4);border-radius:var(--radius-sm);margin:8px 12px 0;padding:8px 14px;align-items:center;flex-wrap:wrap;gap:8px;flex-shrink:0">
+  <span style="font-size:0.82rem;font-weight:800;color:var(--accent4)">👀 Guest Mode</span>
+  <span style="font-size:0.78rem;font-weight:600;color:var(--text2);flex:1;min-width:160px">Log, leaderboard, auto-spin &amp; settings are locked. Create a free account to unlock them.</span>
+  <button type="button" onclick="swlSignOutGuest()" style="background:var(--accent4);color:#fff;border:none;border-radius:20px;padding:4px 14px;font-size:0.75rem;font-weight:800;cursor:pointer;white-space:nowrap">Create Free Account →</button>
+</div>
 
 <!-- ===== GAME PAGE ===== -->
 <section class="page active" id="page-game">
@@ -2226,8 +2244,7 @@ body {
         <div id="accountInfoBlock">
           <div style="font-size:0.75rem;font-weight:700;color:var(--text2);margin-bottom:8px">Return to the welcome screen. Your data stays in this browser until you clear site data.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="swlLogoutToLanding()">Log out</button>
-            <button type="button" class="btn btn-danger btn-sm" id="settingsFirebaseSignOutBtn" style="display:none" onclick="swFirebaseSignOut()">🔓 Sign out of Cloud</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="swFirebaseSignOut()">Log out</button>
           </div>
 
           <!-- Change password (only shown when signed in) -->
@@ -2277,7 +2294,7 @@ body {
             <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Channel must be <strong>live</strong> on Xsee when you fetch or post chat.</div>
           </div>
 
-          <!-- All Xsee automation features — Premium only -->
+          <!-- Auto-fetch + Auto-announce — all Premium -->
           <div id="xseeAutoAnnouncePremiumNotice" class="sw-premium-notice" style="display:none">
             <i class="sw-premium-notice-icon" title="Requires Premium">⭐</i>
             <span>Auto-fetch &amp; auto-announce are <strong>Premium</strong> features. Open a support ticket on our Discord to get it activated.</span>
@@ -2294,7 +2311,7 @@ body {
               </label>
               <label class="lb-toggle-wrap" style="justify-content:flex-start">
                 <input type="checkbox" id="xseeAnnounceElim" onchange="saveXseeIntegrationSettings()" />
-                <span>💥 Auto announce eliminations to Xsee chat <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
+                <span>💥 Also announce eliminations <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
               </label>
             </div>
 
@@ -2501,7 +2518,7 @@ body {
           <!-- Delete account — only shown when signed in -->
           <div id="deleteAccountSection" style="display:none;border-top:1px dashed rgba(255,45,45,0.3);padding-top:10px;margin-top:4px">
             <div style="font-size:0.75rem;font-weight:700;color:var(--text2);margin-bottom:8px;line-height:1.5">
-              🔥 <strong>Account deletion</strong> removes your cloud profile + leaderboard from the database and signs you out.
+              🔥 <strong>Account deletion</strong> removes your cloud profile + leaderboard from Firebase and signs you out.
               Local browser data (log, settings) is <em>not</em> removed — use Clear ALL Data above for that.
             </div>
             <button class="btn btn-danger btn-sm" onclick="swlOpenModal('deleteAccountModal')">🗑️ Delete My Account &amp; Cloud Data</button>
@@ -2599,8 +2616,8 @@ let state = {
 };
 
 let wheelLogoImg = null; // custom logo for wheel center circle
-let gameLog     = JSON.parse(localStorage.getItem('sw_log') || '[]');
-let leaderboard = JSON.parse(localStorage.getItem('sw_lb') || '[]');
+let gameLog     = (function(){ try { return JSON.parse(localStorage.getItem('sw_log') || '[]'); } catch(e){ return []; } })();
+let leaderboard = (function(){ try { return JSON.parse(localStorage.getItem('sw_lb')  || '[]'); } catch(e){ return []; } })();
 const LB_CONFIG_DEFAULTS = {
   pointsPerWin: 1,
   pointsTop3: 1,
@@ -2611,7 +2628,7 @@ const LB_CONFIG_DEFAULTS = {
     { from: 4, to: 10, prize: '🎖️ Participation Prize' },
   ],
 };
-let lbConfig = JSON.parse(localStorage.getItem('sw_lbconfig') || 'null');
+let lbConfig = (function(){ try { return JSON.parse(localStorage.getItem('sw_lbconfig') || 'null'); } catch(e){ return null; } })();
 if (!lbConfig || typeof lbConfig !== 'object') lbConfig = { ...LB_CONFIG_DEFAULTS, prizes: LB_CONFIG_DEFAULTS.prizes.map(p => ({ ...p })) };
 else {
   lbConfig = { ...LB_CONFIG_DEFAULTS, ...lbConfig };
@@ -2622,7 +2639,7 @@ else {
   if (!Array.isArray(lbConfig.prizes) || !lbConfig.prizes.length) lbConfig.prizes = LB_CONFIG_DEFAULTS.prizes.map(p => ({ ...p }));
 }
 let currentTheme = localStorage.getItem('sw_theme') || 'colorful';
-let adSettings   = JSON.parse(localStorage.getItem('sw_ad') || '{"enabled":false,"text":"","imageUrl":"","maxLen":150}');
+let adSettings = (function(){ try { return JSON.parse(localStorage.getItem('sw_ad') || '{"enabled":false,"text":"","imageUrl":"","maxLen":150}'); } catch(e){ return {enabled:false,text:'',imageUrl:'',maxLen:150}; } })();
 let wheelAngle   = 0;
 let spinAnimId   = null;
 
@@ -2695,7 +2712,7 @@ function showTab(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelector('.header')?.classList.remove('header-hidden');
-  if (name === 'log') { pruneErrorLog(); renderLog(); renderCycleLog(); }
+  if (name === 'log') { if (typeof pruneErrorLog === 'function') pruneErrorLog(); renderLog(); renderCycleLog(); }
   if (name === 'leaderboard') renderLeaderboard();
 }
 
@@ -2705,7 +2722,8 @@ function switchLogTab(tab) {
   const isErrors = tab === 'errors';
   document.getElementById('logSubGames').style.display  = isGames  ? '' : 'none';
   document.getElementById('logSubCycles').style.display = isCycles ? '' : 'none';
-  document.getElementById('logSubErrors').style.display = isErrors ? '' : 'none';
+  const errSub = document.getElementById('logSubErrors');
+  if (errSub) errSub.style.display = isErrors ? '' : 'none';
   const gBtn = document.getElementById('logtab-games');
   const cBtn = document.getElementById('logtab-cycles');
   const eBtn = document.getElementById('logtab-errors');
@@ -2716,7 +2734,7 @@ function switchLogTab(tab) {
   if (eBtn) {
     eBtn.style.color             = isErrors ? 'var(--accent1)' : 'var(--text2)';
     eBtn.style.borderBottomColor = isErrors ? 'var(--accent1)' : 'transparent';
-    if (isErrors) renderErrorLog();
+    if (isErrors) { renderErrorLog(); delete eBtn.dataset.hasErrors; eBtn.textContent = '🐛 Error Log'; }
   }
 }
 
@@ -3140,7 +3158,7 @@ function saveXseeIntegrationSettings() {
   const tpl  = document.getElementById('xseeAnnounceTemplate');
   const etpl = document.getElementById('xseeElimTemplate');
 
-  // All three automation features are premium only
+  // All automation features are premium only
   if (af) {
     if (!isPremium && af.checked) {
       af.checked = false;
@@ -3391,15 +3409,13 @@ async function sendWinnerToXseeChat() {
     if (btn) { btn.disabled = false; btn.textContent = '📡 Send to Xsee'; }
     if (e.details && e.details.installUrl) showToast('⚠️ App must be installed on channel');
     else showToast('❌ ' + (e.message || 'Send failed'));
-    logError('Xsee manual send to chat', e);
   }
 }
 
 function syncXseeAutoFetchTimer() {
   if (_xseeAutoFetchTimer) { clearInterval(_xseeAutoFetchTimer); _xseeAutoFetchTimer = null; }
-  // Never poll before login or without premium
+  // Never poll before the user is logged in
   if (!window._swCurrentUser) return;
-  if (!(window._swCurrentUser && window._swCurrentUser.isPremium)) return;
   const s = getXseeIntegrationSettings();
   if (!s.autoFetch || !getXseeHostUsername()) return;
   _xseeAutoFetchTimer = setInterval(() => {
@@ -4254,9 +4270,9 @@ function exportLogCSV() {
 }
 
 // ==========================================
-//  ERROR LOG
+//  ERROR LOG (local, auto-deleted after 3 days, no stack traces)
 // ==========================================
-const ERROR_LOG_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+const ERROR_LOG_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 let errorLog = [];
 
 (function _loadErrorLog() {
@@ -4264,9 +4280,7 @@ let errorLog = [];
     const raw = localStorage.getItem('sw_error_log');
     errorLog = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(errorLog)) errorLog = [];
-  } catch(e) {
-    errorLog = [];
-  }
+  } catch(e) { errorLog = []; }
   pruneErrorLog();
 })();
 
@@ -4278,23 +4292,21 @@ function pruneErrorLog() {
 }
 
 function _saveErrorLog() {
-  try { localStorage.setItem('sw_error_log', JSON.stringify(errorLog)); } catch(e) { /* storage full */ }
+  try { localStorage.setItem('sw_error_log', JSON.stringify(errorLog)); } catch(e) {}
 }
 
 function logError(action, error) {
   const now = new Date();
-  const entry = {
+  errorLog.unshift({
     ts:      now.getTime(),
     date:    now.toLocaleDateString(),
     time:    now.toLocaleTimeString(),
     action:  action || 'unknown',
-    message: (error && (error.message || String(error))) || 'Unknown error',
-    stack:   (error && error.stack) ? error.stack.split('\n').slice(0,4).join(' | ') : '',
-  };
-  errorLog.unshift(entry);
-  if (errorLog.length > 200) errorLog.length = 200; // cap at 200 entries
+    // No stack traces — they expose internal file paths and line numbers
+    message: (error && (error.code ? '[' + error.code + '] ' : '') + (error.message || String(error))) || 'Unknown error',
+  });
+  if (errorLog.length > 200) errorLog.length = 200;
   _saveErrorLog();
-  // Highlight error tab button if it exists
   const eBtn = document.getElementById('logtab-errors');
   if (eBtn && !eBtn.dataset.hasErrors) {
     eBtn.dataset.hasErrors = '1';
@@ -4313,13 +4325,10 @@ function renderErrorLog() {
   container.innerHTML = errorLog.map(e => `
     <div class="log-entry" style="border-left:3px solid var(--accent1)">
       <div class="log-entry-header">
-        <div>
-          <span class="mode-tag" style="background:var(--accent1);color:#fff">⚠️ ${escHtml(e.action)}</span>
-        </div>
+        <span class="mode-tag" style="background:var(--accent1);color:#fff">⚠️ ${escHtml(e.action)}</span>
         <div class="log-meta"><span>📅 ${escHtml(e.date)} ${escHtml(e.time)}</span></div>
       </div>
-      <div style="font-size:0.78rem;font-weight:700;color:var(--accent1);margin:4px 0 2px">${escHtml(e.message)}</div>
-      ${e.stack ? `<div style="font-size:0.68rem;color:var(--text2);font-family:monospace;white-space:pre-wrap;word-break:break-all;opacity:0.75;margin-top:2px">${escHtml(e.stack)}</div>` : ''}
+      <div style="font-size:0.78rem;font-weight:700;color:var(--accent1);margin-top:4px">${escHtml(e.message)}</div>
     </div>`).join('');
 }
 
@@ -4335,8 +4344,8 @@ function clearErrorLog() {
 
 function exportErrorLogCSV() {
   if (!errorLog.length) { showToast('⚠️ No errors to export!'); return; }
-  const rows = [['Date','Time','Action','Error','Stack']];
-  errorLog.forEach(e => rows.push([e.date, e.time, e.action, e.message, e.stack || '']));
+  const rows = [['Date','Time','Action','Error']];
+  errorLog.forEach(e => rows.push([e.date, e.time, e.action, e.message]));
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -4344,7 +4353,82 @@ function exportErrorLogCSV() {
   showToast('📤 Error log exported!');
 }
 
+// ==========================================
+//  GUEST MODE
+// ==========================================
+const GUEST_LOCKED_TABS     = ['log', 'leaderboard', 'settings'];
+const GUEST_LOCKED_SECTIONS = ['lbToggleWrap', 'autoSpinPauseBtn'];
 
+function isGuestMode() {
+  return !window._swCurrentUser && sessionStorage.getItem('sw_guest_mode') === '1';
+}
+
+window.swlContinueAsGuest = function() {
+  // If Firebase already has a real user, just enter the app — don't set guest mode
+  if (window._swCurrentUser) {
+    if (typeof swlEnterApp === 'function') swlEnterApp();
+    return;
+  }
+  sessionStorage.setItem('sw_guest_mode', '1');
+  var landing = document.getElementById('sw-landing-root');
+  if (landing) landing.classList.add('sw-landing-hidden');
+  _applyGuestGates();
+  showToast('👀 Guest mode — create a free account to unlock everything!');
+};
+
+window.swlSignOutGuest = function() {
+  sessionStorage.removeItem('sw_guest_mode');
+  var landing = document.getElementById('sw-landing-root');
+  if (landing) landing.classList.remove('sw-landing-hidden');
+  window.scrollTo(0, 0);
+  setTimeout(function() {
+    var sec = document.getElementById('loginSection');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+  }, 80);
+};
+
+function _applyGuestGates() {
+  const isGuest = isGuestMode();
+  const banner  = document.getElementById('guestModeBanner');
+  if (banner) banner.style.display = isGuest ? 'flex' : 'none';
+
+  GUEST_LOCKED_TABS.forEach(function(name) {
+    const btn = document.getElementById('tab-' + name);
+    if (!btn) return;
+    btn.style.opacity       = isGuest ? '0.45' : '1';
+    btn.style.pointerEvents = isGuest ? 'none' : 'auto';
+    btn.title               = isGuest ? '🔒 Create a free account to access this' : '';
+  });
+
+  GUEST_LOCKED_SECTIONS.forEach(function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.opacity       = isGuest ? '0.4' : '1';
+    el.style.pointerEvents = isGuest ? 'none' : 'auto';
+    el.title               = isGuest ? '🔒 Create a free account to use this' : '';
+  });
+
+  // LB toggle: uncheck for guests, restore for real users
+  const lbEnabled = document.getElementById('lbEnabled');
+  if (lbEnabled) {
+    if (isGuest) lbEnabled.checked = false;
+    if (typeof updateLbToggleStyle === 'function') updateLbToggleStyle();
+  }
+}
+
+// Wrap showTab to intercept locked tabs for guests
+const _originalShowTab = showTab;
+function showTab(name) {
+  if (isGuestMode() && GUEST_LOCKED_TABS.indexOf(name) !== -1) {
+    showToast('🔒 Create a free account to access ' + name);
+    return;
+  }
+  _originalShowTab(name);
+}
+
+// ==========================================
+//  CLEAR DATA
+// ==========================================
 function clearAllData() {
   if (!confirm('⚠️ Delete ALL data (log, leaderboard, settings, theme)? Cannot be undone.')) return;
   if (!confirm('🚨 Last chance — confirm full reset?')) return;
@@ -4813,7 +4897,7 @@ let cycleState = {
   waitIntervalId: null, pollId: null,
   startedAt: null, prize: '', mode: ''
 };
-let cycleLog = JSON.parse(localStorage.getItem('sw_cycle_log') || '[]');
+let cycleLog = (function(){ try { return JSON.parse(localStorage.getItem('sw_cycle_log') || '[]'); } catch(e){ return []; } })();
 
 function cycleBannerShow(show) {
   const el = document.getElementById('cycleLiveBanner');
@@ -5187,11 +5271,14 @@ function escHtml(s) {
   }
 
   window.swlEnterApp = function () {
+    // Clear any leftover guest session before entering as real user
+    sessionStorage.removeItem('sw_guest_mode');
     var r = document.getElementById('sw-landing-root');
     if (r) r.classList.add('sw-landing-hidden');
     try {
       history.replaceState(null, '', (location.pathname || '') + '#app');
     } catch (e) {}
+    if (typeof _applyGuestGates    === 'function') _applyGuestGates();
     if (typeof swApplyPremiumGates === 'function') swApplyPremiumGates();
   };
 
@@ -5379,9 +5466,8 @@ function escHtml(s) {
         ? '\u274C Too many attempts — please wait a moment'
         : '\u274C Sign-in failed (' + code + ')';
       showToast(msg);
-      // Only log unexpected errors (not wrong password — that's normal user input)
       if (code !== 'auth/invalid-credential' && code !== 'auth/wrong-password' && code !== 'auth/user-not-found') {
-        logError('Login (' + code + ')', err);
+        if (typeof logError === 'function') logError('Login (' + code + ')', err);
       }
     }
   };
@@ -5422,7 +5508,7 @@ function escHtml(s) {
         : '\u274C Registration failed (' + code + ')';
       showToast(msg);
       if (code !== 'auth/email-already-in-use' && code !== 'auth/weak-password') {
-        logError('Register (' + code + ')', err);
+        if (typeof logError === 'function') logError('Register (' + code + ')', err);
       }
     }
   };
@@ -5450,9 +5536,10 @@ function escHtml(s) {
     if (!fb) return;
     try {
       await fb.signOut(fb.auth);
-      showToast('\uD83D\uDD13 Signed out of cloud');
+      showToast('\uD83D\uDD13 Signed out');
       window._swCurrentUser = null;
       window._swUpdateAuthUI();
+      setTimeout(swlLogoutToLanding, 400);
     } catch (e) { showToast('\u26A0\uFE0F Sign out failed'); }
   };
 
@@ -5496,10 +5583,9 @@ function escHtml(s) {
     var username = user ? (user.username || localStorage.getItem('sw_username') || '') : '';
 
     // Settings session panel
-    var statusBar = document.getElementById('settingsAuthStatus');
-    var statusText = document.getElementById('settingsAuthText');
-    var signOutBtn = document.getElementById('settingsFirebaseSignOutBtn');
-    var deleteSection = document.getElementById('deleteAccountSection');
+    var statusBar      = document.getElementById('settingsAuthStatus');
+    var statusText     = document.getElementById('settingsAuthText');
+    var deleteSection  = document.getElementById('deleteAccountSection');
     var changePwSection = document.getElementById('changePasswordSection');
     if (statusBar && statusText) {
       if (user) {
@@ -5512,8 +5598,7 @@ function escHtml(s) {
         statusBar.classList.remove('show');
       }
     }
-    if (signOutBtn) signOutBtn.style.display = user ? 'inline-flex' : 'none';
-    if (deleteSection) deleteSection.style.display = user ? 'block' : 'none';
+    if (deleteSection)  deleteSection.style.display  = user ? 'block' : 'none';
     if (changePwSection) changePwSection.style.display = user ? 'block' : 'none';
 
     // Leaderboard sync button + cloud status bar
@@ -5526,9 +5611,8 @@ function escHtml(s) {
 
     // Apply stream mode on load
     swApplyStreamMode();
-    // Apply premium gates
     if (typeof swApplyPremiumGates === 'function') swApplyPremiumGates();
-    // Re-evaluate auto-fetch timer and manual send button now that auth state is known
+    if (typeof _applyGuestGates    === 'function') _applyGuestGates();
     if (typeof syncXseeAutoFetchTimer === 'function') syncXseeAutoFetchTimer();
     if (typeof updateXseeSendChatButton === 'function') updateXseeSendChatButton();
   };
@@ -5551,7 +5635,7 @@ function escHtml(s) {
       var cloudSyncMs = data.lastSynced ? data.lastSynced.toMillis() : 0;
       var localSyncStr = localStorage.getItem('sw_lb_last_sync');
       var localSyncMs = localSyncStr ? new Date(localSyncStr).getTime() : 0;
-      var localLb = (function() { try { return JSON.parse(localStorage.getItem('sw_lb') || '[]'); } catch(e) { return []; } })();
+      var localLb = JSON.parse(localStorage.getItem('sw_lb') || '[]');
       var localHasData = localLb.length > 0;
 
       if (localHasData && localSyncMs > cloudSyncMs) {
@@ -5587,7 +5671,7 @@ function escHtml(s) {
       showToast('\u2601\uFE0F Cloud leaderboard loaded!');
     } catch (e) {
       // Firebase quota or network error — fall back to localStorage silently
-      var localLbFallback = (function() { try { return JSON.parse(localStorage.getItem('sw_lb') || '[]'); } catch(e) { return []; } })();
+      var localLbFallback = JSON.parse(localStorage.getItem('sw_lb') || '[]');
       if (localLbFallback.length > 0) {
         window._swShowOfflineBanner(
           'Cloud database is temporarily unreachable. Your local leaderboard ('
@@ -5597,7 +5681,6 @@ function escHtml(s) {
         window._swShowOfflineBanner();
       }
       console.warn('[StreamWheel] Cloud LB fetch failed:', e.code || e.message);
-      logError('Cloud LB load', e);
     }
   };
 
@@ -5650,7 +5733,7 @@ function escHtml(s) {
         window._swShowOfflineBanner('Sync failed. Your leaderboard is saved locally and will sync next time the cloud is reachable.');
       }
       console.error('[StreamWheel] LB sync error:', e);
-      logError('Cloud LB sync', e);
+      if (typeof logError === 'function') logError('Cloud LB sync', e);
     } finally {
       if (!silent && btn) { btn.disabled = false; btn.textContent = '\u2601\uFE0F Sync to Cloud'; }
     }
@@ -5715,9 +5798,9 @@ function escHtml(s) {
       var af = document.getElementById('xseeAutoFetch');
       var aa = document.getElementById('xseeAutoAnnounce');
       var ae = document.getElementById('xseeAnnounceElim');
-      if (af && af.checked) { af.checked = false; localStorage.setItem('sw_xsee_auto_fetch',     '0'); }
-      if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce',  '0'); }
-      if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim',  '0'); }
+      if (af && af.checked) { af.checked = false; localStorage.setItem('sw_xsee_auto_fetch',    '0'); }
+      if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce', '0'); }
+      if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim', '0'); }
     }
   };
 
@@ -5911,7 +5994,9 @@ function escHtml(s) {
     '* \uD83C\uDFA8 Custom branded wheel colors & logo\n';
 
   function swlInitHash() {
-    if (location.hash === '#app') swlEnterApp();
+    // Don't call swlEnterApp here — Firebase onAuthStateChanged handles auto-login.
+    // If the hash is #app but no session exists, the landing page stays correctly visible.
+    // This prevents swApplyPremiumGates from running before _swCurrentUser is resolved.
   }
 
   function swlOnLandingReady() {

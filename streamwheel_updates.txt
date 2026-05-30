@@ -14,9 +14,20 @@ date: 30/05/2026
 * no access to leaderboard, settings, logs, autospin
 
 ** changes**
-* defult leaderboard points Always 1 instead of 10/25/50
-++ new line ++
+* default leaderboard points Always 1 instead of 10/25/50
 
+** fixes**
+* login system optimized
+* sing out from database will now bring back login page avoiding user getting stuck in settings menu
+* minor error handling improvements to avoid user getting stuck
+* background database reads changed to avoid mutliple unneeded calls
+* move autofetch visually behind premium as it wasn't showing correctly in settings
+* remove unneeded code after code improvements
+* avoid startup crash with localstorage if user signs in with guest by accident
+* merged logout buttons, instead of one for database and one normal merging them to 1 signout + disconnect
+
+
+++ new line ++
 # 💻 V1.4 - API integration!
 date: 23/05/2026
 
