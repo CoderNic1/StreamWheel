@@ -20,8 +20,10 @@
     https://*.firebasestorage.app
     https://*.firebaseio.com
     wss://*.firebaseio.com
+    https://*.firebaseapp.com
     https://raw.githubusercontent.com
-    https://firestore.googleapis.com;
+    https://firestore.googleapis.com
+    https://stream-wheel.vercel.app;
   frame-src 'none';
   object-src 'none';
 ">
@@ -2244,7 +2246,8 @@ body {
         <div id="accountInfoBlock">
           <div style="font-size:0.75rem;font-weight:700;color:var(--text2);margin-bottom:8px">Return to the welcome screen. Your data stays in this browser until you clear site data.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="swFirebaseSignOut()">Log out</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="swlLogoutToLanding()">Log out</button>
+            <button type="button" class="btn btn-danger btn-sm" id="settingsFirebaseSignOutBtn" style="display:none" onclick="swFirebaseSignOut()">🔓 Sign out of Cloud</button>
           </div>
 
           <!-- Change password (only shown when signed in) -->
@@ -2294,17 +2297,21 @@ body {
             <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Channel must be <strong>live</strong> on Xsee when you fetch or post chat.</div>
           </div>
 
-          <!-- Auto-fetch + Auto-announce — all Premium -->
+          <!-- Auto-fetch — free -->
+          <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
+            <label class="lb-toggle-wrap" style="justify-content:flex-start">
+              <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
+              <span>📡 Auto-fetch participants every 60s</span>
+            </label>
+          </div>
+
+          <!-- Auto-announce — Premium only -->
           <div id="xseeAutoAnnouncePremiumNotice" class="sw-premium-notice" style="display:none">
             <i class="sw-premium-notice-icon" title="Requires Premium">⭐</i>
-            <span>Auto-fetch &amp; auto-announce are <strong>Premium</strong> features. Open a support ticket on our Discord to get it activated.</span>
+            <span>Auto-announce to chat is a <strong>Premium</strong> feature. Subscribe to the <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou channel on Xsee</a> to unlock it.</span>
           </div>
           <div id="xseeAutoAnnounceContent">
             <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-              <label class="lb-toggle-wrap" style="justify-content:flex-start">
-                <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
-                <span>📡 Auto-fetch participants every 60s <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
-              </label>
               <label class="lb-toggle-wrap" style="justify-content:flex-start">
                 <input type="checkbox" id="xseeAutoAnnounce" onchange="saveXseeIntegrationSettings()" />
                 <span>💬 Auto-post winner messages to Xsee chat <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
@@ -2616,8 +2623,8 @@ let state = {
 };
 
 let wheelLogoImg = null; // custom logo for wheel center circle
-let gameLog     = (function(){ try { return JSON.parse(localStorage.getItem('sw_log') || '[]'); } catch(e){ return []; } })();
-let leaderboard = (function(){ try { return JSON.parse(localStorage.getItem('sw_lb')  || '[]'); } catch(e){ return []; } })();
+let gameLog     = JSON.parse(localStorage.getItem('sw_log') || '[]');
+let leaderboard = JSON.parse(localStorage.getItem('sw_lb') || '[]');
 const LB_CONFIG_DEFAULTS = {
   pointsPerWin: 1,
   pointsTop3: 1,
@@ -2628,7 +2635,7 @@ const LB_CONFIG_DEFAULTS = {
     { from: 4, to: 10, prize: '🎖️ Participation Prize' },
   ],
 };
-let lbConfig = (function(){ try { return JSON.parse(localStorage.getItem('sw_lbconfig') || 'null'); } catch(e){ return null; } })();
+let lbConfig = JSON.parse(localStorage.getItem('sw_lbconfig') || 'null');
 if (!lbConfig || typeof lbConfig !== 'object') lbConfig = { ...LB_CONFIG_DEFAULTS, prizes: LB_CONFIG_DEFAULTS.prizes.map(p => ({ ...p })) };
 else {
   lbConfig = { ...LB_CONFIG_DEFAULTS, ...lbConfig };
@@ -2639,7 +2646,7 @@ else {
   if (!Array.isArray(lbConfig.prizes) || !lbConfig.prizes.length) lbConfig.prizes = LB_CONFIG_DEFAULTS.prizes.map(p => ({ ...p }));
 }
 let currentTheme = localStorage.getItem('sw_theme') || 'colorful';
-let adSettings = (function(){ try { return JSON.parse(localStorage.getItem('sw_ad') || '{"enabled":false,"text":"","imageUrl":"","maxLen":150}'); } catch(e){ return {enabled:false,text:'',imageUrl:'',maxLen:150}; } })();
+let adSettings   = JSON.parse(localStorage.getItem('sw_ad') || '{"enabled":false,"text":"","imageUrl":"","maxLen":150}');
 let wheelAngle   = 0;
 let spinAnimId   = null;
 
@@ -2707,6 +2714,12 @@ document.addEventListener('DOMContentLoaded', () => {
 //  TABS
 // ==========================================
 function showTab(name) {
+  // Guest mode: intercept locked tabs before doing anything
+  if (typeof isGuestMode === 'function' && isGuestMode() &&
+      typeof GUEST_LOCKED_TABS !== 'undefined' && GUEST_LOCKED_TABS.indexOf(name) !== -1) {
+    if (typeof showToast === 'function') showToast('🔒 Create a free account to access ' + name);
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -3158,14 +3171,8 @@ function saveXseeIntegrationSettings() {
   const tpl  = document.getElementById('xseeAnnounceTemplate');
   const etpl = document.getElementById('xseeElimTemplate');
 
-  // All automation features are premium only
-  if (af) {
-    if (!isPremium && af.checked) {
-      af.checked = false;
-      showToast('⭐ Auto-fetch is a Premium feature');
-    }
-    localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
-  }
+  // Auto-fetch is free; auto-announce features are premium only
+  if (af) localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
 
   if (aa) {
     if (!isPremium && aa.checked) {
@@ -3362,7 +3369,6 @@ async function maybeAnnounceToXsee(ctx) {
     } else {
       showToast('❌ Chat: ' + (e.message || 'failed'));
     }
-    logError('Xsee auto-announce', e);
   }
 }
 
@@ -4416,16 +4422,6 @@ function _applyGuestGates() {
   }
 }
 
-// Wrap showTab to intercept locked tabs for guests
-const _originalShowTab = showTab;
-function showTab(name) {
-  if (isGuestMode() && GUEST_LOCKED_TABS.indexOf(name) !== -1) {
-    showToast('🔒 Create a free account to access ' + name);
-    return;
-  }
-  _originalShowTab(name);
-}
-
 // ==========================================
 //  CLEAR DATA
 // ==========================================
@@ -4897,7 +4893,7 @@ let cycleState = {
   waitIntervalId: null, pollId: null,
   startedAt: null, prize: '', mode: ''
 };
-let cycleLog = (function(){ try { return JSON.parse(localStorage.getItem('sw_cycle_log') || '[]'); } catch(e){ return []; } })();
+let cycleLog = JSON.parse(localStorage.getItem('sw_cycle_log') || '[]');
 
 function cycleBannerShow(show) {
   const el = document.getElementById('cycleLiveBanner');
@@ -5536,10 +5532,9 @@ function escHtml(s) {
     if (!fb) return;
     try {
       await fb.signOut(fb.auth);
-      showToast('\uD83D\uDD13 Signed out');
+      showToast('\uD83D\uDD13 Signed out of cloud');
       window._swCurrentUser = null;
       window._swUpdateAuthUI();
-      setTimeout(swlLogoutToLanding, 400);
     } catch (e) { showToast('\u26A0\uFE0F Sign out failed'); }
   };
 
@@ -5583,9 +5578,10 @@ function escHtml(s) {
     var username = user ? (user.username || localStorage.getItem('sw_username') || '') : '';
 
     // Settings session panel
-    var statusBar      = document.getElementById('settingsAuthStatus');
-    var statusText     = document.getElementById('settingsAuthText');
-    var deleteSection  = document.getElementById('deleteAccountSection');
+    var statusBar = document.getElementById('settingsAuthStatus');
+    var statusText = document.getElementById('settingsAuthText');
+    var signOutBtn = document.getElementById('settingsFirebaseSignOutBtn');
+    var deleteSection = document.getElementById('deleteAccountSection');
     var changePwSection = document.getElementById('changePasswordSection');
     if (statusBar && statusText) {
       if (user) {
@@ -5598,7 +5594,8 @@ function escHtml(s) {
         statusBar.classList.remove('show');
       }
     }
-    if (deleteSection)  deleteSection.style.display  = user ? 'block' : 'none';
+    if (signOutBtn) signOutBtn.style.display = user ? 'inline-flex' : 'none';
+    if (deleteSection) deleteSection.style.display = user ? 'block' : 'none';
     if (changePwSection) changePwSection.style.display = user ? 'block' : 'none';
 
     // Leaderboard sync button + cloud status bar
@@ -5787,18 +5784,16 @@ function escHtml(s) {
     if (adNotice)  adNotice.style.display  = isPremium ? 'none' : 'flex';
     if (adContent) adContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Integrations — all automation toggles are premium (auto-fetch, auto-announce, elim)
+    // Integrations — auto-announce toggles (auto-fetch is free)
     var announceNotice  = document.getElementById('xseeAutoAnnouncePremiumNotice');
     var announceContent = document.getElementById('xseeAutoAnnounceContent');
     if (announceNotice)  announceNotice.style.display  = isPremium ? 'none' : 'flex';
     if (announceContent) announceContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Force-uncheck all automation checkboxes if not premium
+    // Force-uncheck auto-announce checkboxes if not premium
     if (!isPremium) {
-      var af = document.getElementById('xseeAutoFetch');
       var aa = document.getElementById('xseeAutoAnnounce');
       var ae = document.getElementById('xseeAnnounceElim');
-      if (af && af.checked) { af.checked = false; localStorage.setItem('sw_xsee_auto_fetch',    '0'); }
       if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce', '0'); }
       if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim', '0'); }
     }
@@ -5994,9 +5989,7 @@ function escHtml(s) {
     '* \uD83C\uDFA8 Custom branded wheel colors & logo\n';
 
   function swlInitHash() {
-    // Don't call swlEnterApp here — Firebase onAuthStateChanged handles auto-login.
-    // If the hash is #app but no session exists, the landing page stays correctly visible.
-    // This prevents swApplyPremiumGates from running before _swCurrentUser is resolved.
+    if (location.hash === '#app') swlEnterApp();
   }
 
   function swlOnLandingReady() {
