@@ -2297,21 +2297,17 @@ body {
             <div style="font-size:0.72rem;font-weight:600;color:var(--text2);margin-top:3px">Channel must be <strong>live</strong> on Xsee when you fetch or post chat.</div>
           </div>
 
-          <!-- Auto-fetch — free -->
-          <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
-            <label class="lb-toggle-wrap" style="justify-content:flex-start">
-              <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
-              <span>📡 Auto-fetch participants every 60s</span>
-            </label>
-          </div>
-
-          <!-- Auto-announce — Premium only -->
+          <!-- Auto-fetch + Auto-announce — all Premium -->
           <div id="xseeAutoAnnouncePremiumNotice" class="sw-premium-notice" style="display:none">
             <i class="sw-premium-notice-icon" title="Requires Premium">⭐</i>
-            <span>Auto-announce to chat is a <strong>Premium</strong> feature. Subscribe to the <a href="https://xsee.tv/iwatchyou" target="_blank" rel="noopener noreferrer">Iwatchyou channel on Xsee</a> to unlock it.</span>
+            <span>Auto-fetch &amp; auto-announce are <strong>Premium</strong> features. Open a support ticket on our Discord to get it activated.</span>
           </div>
           <div id="xseeAutoAnnounceContent">
             <div class="form-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+              <label class="lb-toggle-wrap" style="justify-content:flex-start">
+                <input type="checkbox" id="xseeAutoFetch" onchange="saveXseeIntegrationSettings()" />
+                <span>📡 Auto-fetch participants every 60s <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
+              </label>
               <label class="lb-toggle-wrap" style="justify-content:flex-start">
                 <input type="checkbox" id="xseeAutoAnnounce" onchange="saveXseeIntegrationSettings()" />
                 <span>💬 Auto-post winner messages to Xsee chat <span style="font-size:0.7rem;opacity:0.7">⭐ Premium</span></span>
@@ -3171,8 +3167,14 @@ function saveXseeIntegrationSettings() {
   const tpl  = document.getElementById('xseeAnnounceTemplate');
   const etpl = document.getElementById('xseeElimTemplate');
 
-  // Auto-fetch is free; auto-announce features are premium only
-  if (af) localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  // All three automation features are premium only
+  if (af) {
+    if (!isPremium && af.checked) {
+      af.checked = false;
+      showToast('⭐ Auto-fetch is a Premium feature');
+    }
+    localStorage.setItem('sw_xsee_auto_fetch', af.checked ? '1' : '0');
+  }
 
   if (aa) {
     if (!isPremium && aa.checked) {
@@ -5784,16 +5786,18 @@ function escHtml(s) {
     if (adNotice)  adNotice.style.display  = isPremium ? 'none' : 'flex';
     if (adContent) adContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Integrations — auto-announce toggles (auto-fetch is free)
+    // Integrations — all automation toggles are premium (auto-fetch, auto-announce, elim)
     var announceNotice  = document.getElementById('xseeAutoAnnouncePremiumNotice');
     var announceContent = document.getElementById('xseeAutoAnnounceContent');
     if (announceNotice)  announceNotice.style.display  = isPremium ? 'none' : 'flex';
     if (announceContent) announceContent.classList.toggle('sw-premium-gate', !isPremium);
 
-    // Force-uncheck auto-announce checkboxes if not premium
+    // Force-uncheck all automation checkboxes if not premium
     if (!isPremium) {
+      var af = document.getElementById('xseeAutoFetch');
       var aa = document.getElementById('xseeAutoAnnounce');
       var ae = document.getElementById('xseeAnnounceElim');
+      if (af && af.checked) { af.checked = false; localStorage.setItem('sw_xsee_auto_fetch',    '0'); }
       if (aa && aa.checked) { aa.checked = false; localStorage.setItem('sw_xsee_auto_announce', '0'); }
       if (ae && ae.checked) { ae.checked = false; localStorage.setItem('sw_xsee_announce_elim', '0'); }
     }
