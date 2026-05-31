@@ -3450,6 +3450,15 @@ function saveXseeSpaceLinkFromGame() {
 //  GAME START / RESET
 // ==========================================
 function startGame() {
+  // If the button says Restart, reset back to pre-start state keeping entries intact
+  if (document.getElementById('startGameBtn').textContent.trim().startsWith('🔄')) {
+    const currentEntries = document.getElementById('entriesBox').value;
+    resetGame();
+    // Restore entries so user can edit or just hit Start again
+    document.getElementById('entriesBox').value = currentEntries;
+    return;
+  }
+
   const entries = getEntries();
   if (entries.length < 2) { showToast('⚠️ Add at least 2 entries!'); return; }
   const prize = document.getElementById('prizeName').value.trim();
